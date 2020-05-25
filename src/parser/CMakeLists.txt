@@ -1,5 +1,7 @@
 project(elby-parser)
 
+cmake_minimum_required(VERSION 3.16)
+
 # Definitions
 set(LIBRARY_TARGET "elby-parser")
 set(TEST_TARGET "${LIBRARY_TARGET}_test")

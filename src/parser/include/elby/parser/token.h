@@ -52,6 +52,14 @@ void token_free(struct Token *tok);
 void token_tostring(struct Token *tok, char *buf, size_t len);
 
 /**
+ * Return a string representation of the token
+ * @param tok
+ * @return The string representation of the token. Should
+ * not be freed.
+ */
+const char* token_tosstring(struct Token *tok);
+
+/**
  * Get the token type of the string value. If it's a keyword,
  * return the appropriate one, otherwise return an ID
  * @param value

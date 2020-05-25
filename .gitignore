@@ -57,6 +57,7 @@ obj/
 _ReSharper*/
 *.sbr
 .clangd/
+.vagrant/
 
 # Build system
 build/

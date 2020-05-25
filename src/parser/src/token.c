@@ -7,6 +7,9 @@
 
 #include "token.h"
 
+#define TOKEN_STRING_BUF_LEN 255
+static char token_string_buf[TOKEN_STRING_BUF_LEN + 1];
+
 struct KeywordToken {
     const char *kwd;
     const enum TokenType type;
@@ -15,7 +18,7 @@ struct KeywordToken {
 static struct KeywordToken keywords[] = {
         { "func",       TOK_FUNC },
         { "let",        TOK_LET },
-        { 0,            TOK_EOF }
+        { 0,            0 }
 };
 
 void token_free(struct Token *tok) {
@@ -40,6 +43,12 @@ void token_tostring(struct Token *tok, char *buf, size_t len) {
             snprintf(buf, len, "'%.*s'", tok->length, tok->start);
             break;
     }
+}
+
+const char* token_tosstring(struct Token *tok) {
+    token_tostring(tok, token_string_buf, TOKEN_STRING_BUF_LEN);
+    token_string_buf[TOKEN_STRING_BUF_LEN] = '\0';
+    return token_string_buf;
 }
 
 enum TokenType token_keyword_or_id(const char *value, size_t len) {

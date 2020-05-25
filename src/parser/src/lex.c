@@ -104,10 +104,10 @@ int lexer_next(struct Lexer *lexer, struct Token **dest) {
     tok->start = lexer->position.index - 1;
     tok->line_no = lexer->position.line_no;
 
-    if (isnumber(tok_start)) {
+    if (isdigit(tok_start)) {
         lexer->partial.start = lexer->position.index - 1;
         lexer->partial.length = 1;
-        while (isnumber(lexer_peek(lexer))) {
+        while (isdigit(lexer_peek(lexer))) {
             lexer_advance(lexer);
             lexer->partial.length++;
         }
@@ -142,6 +142,10 @@ int lexer_next(struct Lexer *lexer, struct Token **dest) {
             case '}':
             case '(':
             case ')':
+            case '-':
+            case '+':
+            case '*':
+            case '/':
                 tok->type = tok_start;
                 tok->length = 1;
                 break;

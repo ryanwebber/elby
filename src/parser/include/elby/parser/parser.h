@@ -10,6 +10,11 @@
 #include "token.h"
 
 enum ASTNodeType {
+    AST_BINARY_OP = 0,
+    AST_CONSTANT,
+    AST_REF,
+    AST_STATEMENTS,
+    AST_UNARY_OP,
     AST_VAR
 };
 
@@ -19,15 +24,50 @@ struct ASTNode {
 
     union {
         struct {
-            const char *name;
+            struct ASTNode *left;
+            struct ASTNode *right;
+            struct Token *op;
+        } binop;
+
+        struct {
+            struct Token *value;
+        } constant;
+
+        struct {
+            struct Token *symbol;
+        } ref;
+
+        struct {
+            struct ASTNode **statements;
+            size_t length;
+        } statements;
+
+        struct {
+            struct ASTNode *left;
+            struct Token *op;
+        } unop;
+
+        struct {
+            struct Token *symbol;
             struct ASTNode *expr;
         } var;
     } u;
 };
 
-struct ASTStack {
-    struct ASTNode *node;
-    struct ASTStack *next;
+struct ASTParse {
+    struct ASTNode *root;
+};
+
+struct ASTVisitor {
+    void (*visit)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitBinOp)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitConstant)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitRef)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitStatements)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitUnaryOp)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitVarDef)(struct ASTNode*, struct ASTVisitor *self);
+
+    void *userdata;
 };
 
 /**
@@ -37,12 +77,18 @@ struct ASTStack {
  * @param stack The destination of the AST
  * @return
  */
-int ast_parse(struct Token *token[], size_t len, struct ASTStack **stack);
+int ast_parse(struct Token *tokens[], size_t len, struct ASTParse **parse);
 
 /**
- * Free an ASTStack
+ * Free an ASTParse and associated AST nodes
  * @param stack
  */
-void ast_free(struct ASTStack *stack);
+void ast_free(struct ASTParse *parse);
+
+/**
+ * Visit a node in the AST
+ * @param visitor The delegate visitor functions
+ */
+void ast_visit(struct ASTVisitor *visitor, struct ASTNode *node);
 
 #endif //ELBY_PARSER_H
