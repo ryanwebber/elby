@@ -11,16 +11,16 @@ enum TokenType {
     // Control tokens
     TOK_EOF                     = -1,
 
-    // Complex tokens
+    // Associated tokens
     TOK_ID                      = -1000,
     TOK_NUMBER                  = -1001,
 
     // Keywords
-    TOK_FUNC                    = -2000,
-    TOK_LET                     = -2020,
+    TOK_LET                     = -2000,
 
-    // Condition operators
-    TOK_EQUALITY                = -3000,
+    // Operators
+    TOK_PIPE                    = -3000,
+    TOK_ARROW                   = -3001,
 };
 
 struct Token {
@@ -58,14 +58,5 @@ void token_tostring(struct Token *tok, char *buf, size_t len);
  * not be freed.
  */
 const char* token_tosstring(struct Token *tok);
-
-/**
- * Get the token type of the string value. If it's a keyword,
- * return the appropriate one, otherwise return an ID
- * @param value
- * @param len
- * @return
- */
-enum TokenType token_keyword_or_id(const char *value, size_t len);
 
 #endif //ELBY_TOKEN_H

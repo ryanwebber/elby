@@ -10,11 +10,13 @@
 #include "token.h"
 
 enum ASTNodeType {
-    AST_BINARY_OP = 0,
+    AST_BINARY_OP,
     AST_CONSTANT,
+    AST_EXPR_LIST,
+    AST_FN_CALL,
+    AST_FN_DEF,
     AST_REF,
     AST_STATEMENTS,
-    AST_UNARY_OP,
     AST_VAR
 };
 
@@ -22,7 +24,10 @@ struct ASTNode {
     enum ASTNodeType type;
     struct Token *root_token;
 
+    int id;
+
     union {
+
         struct {
             struct ASTNode *left;
             struct ASTNode *right;
@@ -34,18 +39,27 @@ struct ASTNode {
         } constant;
 
         struct {
+            struct ASTNode *expr;
+            struct ASTNode *next;
+        } exprlist;
+
+        struct {
+            struct ASTNode *fnref;
+            struct ASTNode *exprlist;
+        } fncall;
+
+        struct {
+            struct ASTNode *body;
+        } fndef;
+
+        struct {
             struct Token *symbol;
         } ref;
 
         struct {
-            struct ASTNode **statements;
-            size_t length;
+            struct ASTNode *statement;
+            struct ASTNode *next;
         } statements;
-
-        struct {
-            struct ASTNode *left;
-            struct Token *op;
-        } unop;
 
         struct {
             struct Token *symbol;
@@ -62,9 +76,11 @@ struct ASTVisitor {
     void (*visit)(struct ASTNode*, struct ASTVisitor *self);
     void (*visitBinOp)(struct ASTNode*, struct ASTVisitor *self);
     void (*visitConstant)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitExprList)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitFnCall)(struct ASTNode*, struct ASTVisitor *self);
+    void (*visitFnDef)(struct ASTNode*, struct ASTVisitor *self);
     void (*visitRef)(struct ASTNode*, struct ASTVisitor *self);
     void (*visitStatements)(struct ASTNode*, struct ASTVisitor *self);
-    void (*visitUnaryOp)(struct ASTNode*, struct ASTVisitor *self);
     void (*visitVarDef)(struct ASTNode*, struct ASTVisitor *self);
 
     void *userdata;
