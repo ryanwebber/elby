@@ -1,67 +1,9 @@
-# Windows
-Thumbs.db
+zig-cache/
+zig-out/
+/release/
+/debug/
+/build/
+/build-*/
 
-# CLion/IntelliJ
-.idea
-
-# Visual Studio
-*.user
-*.aps
-*.pch
-*.vspscc
-*_i.c
-*_p.c
-*.ncb
-*.suo
-*.bak
-*.sdf
-*.opensdf
-*.opendb
-*.VC.db
-*.ipch
-*.iobj
-*.pdb
-*.ipdb
-*.psess
-*.vspx
-*.lastcodeanalysissucceeded
-
-# VSCode
-.vscode
-
-# Vim
-compile_commands.json
-*.swp
-
-# Binaries
-*.dll
-*.hi
-*.o
-*.a
-*.so
-*.dylib
-*.lib
-*.pri
-*.exe
-*.exp
-
-# Intermediate files
-[Dd]ebug*/
-[Rr]elease*/
-obj/
-
-# Misc
-*.cache
-*.ilk
-*.log
-_ReSharper*/
-*.sbr
-.clangd/
-.vagrant/
-
-# Build system
-build/
-
-# External folder
-/local
+.DS_Store
 
