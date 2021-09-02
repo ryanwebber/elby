@@ -6,12 +6,13 @@ An embeddable pre-processor language exposing a `c` API.
  * Dynamic type system
  * Reference counting based GC
  * UTF-8 support
- * Multiple output formats 
+ * Multiple output formats
 
 ```
 <html>
     <body>
-        {// This is a comment, it gets removed with the entire line //}
+        {$ // This is a comment inside a code block $}
+        {$ // Code blocks are stripped from the output, including leading and trailing spaces $}
         {$
             // This is a code block
             let x = 5
@@ -50,4 +51,3 @@ An embeddable pre-processor language exposing a `c` API.
     </body>
 </html>
 ```
-

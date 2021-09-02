@@ -1,17 +1,18 @@
 
-pub const TokeRef = struct {
-    token: Token,
+pub const Token = struct {
+    id: Id,
     range: []const u8,
     lineno: usize,
 
-    pub fn description(self: *TokeRef) []const u8 {
+    pub const Id = union(enum) {
+        template,
+        identifier,
+        source_block_open,
+        source_block_close,
+        eof,
+    };
+
+    pub fn description(self: *Token) []const u8 {
         return self.range;
     }
-};
-
-pub const Token = union(enum) {
-    identifier,
-    eof,
-    assignment,
-    equality
 };
