@@ -91,7 +91,7 @@ pub const Scanner = struct {
         } = if (self.in_template) .capture_template else .capture_source;
 
         // The offset to where this capture started
-        const tok_start = self.iterator.i;
+        var tok_start = self.iterator.i;
 
         // An offset to where this capture will end. Will be added to the final
         // token range, and can be modified to account for ex. pre-buffered tokens
@@ -112,6 +112,20 @@ pub const Scanner = struct {
                                 .capture_template_break = self.iterator.i - slice.len,
                             };
                         },
+                        '\n' => {
+                            // Line break. Don't skip it since it's being templated but track it
+                            self.current_line += 1;
+                        },
+                        '\r' => {
+                            // Line break. Don't skip it since it's being templated but track it,
+                            // and don't increment the current line twice for a \r\n style break.
+                            const nextSlice = self.iterator.peek(1);
+                            if (nextSlice.len == 1 and '\n' == nextSlice[0]) {
+                                self.iterator.i += 1;
+                            }
+
+                            self.current_line += 1;
+                        },
                         else => {
                             // noop, capure and loop
                         }
@@ -123,16 +137,21 @@ pub const Scanner = struct {
                             // We're now scanning source code
                             self.in_template = false;
 
-                            // We now also know the next lexeme
-                            const buffered_lexeme = try self.allocator.create(Lexeme);
-                            buffered_lexeme.type = .source_block_open;
-                            buffered_lexeme.range = self.iterator.bytes[position..self.iterator.i];
-                            self.buffered_lexeme = buffered_lexeme;
+                            if (position == 0) {
+                                // We captured no template data, skip the token
+                                lexeme.type = .source_block_open;
+                            } else {
+                                // We captured template data, so keep it. We now also know the next lexeme
+                                const buffered_lexeme = try self.allocator.create(Lexeme);
+                                buffered_lexeme.type = .source_block_open;
+                                buffered_lexeme.range = self.iterator.bytes[position..self.iterator.i];
+                                self.buffered_lexeme = buffered_lexeme;
 
-                            // Adjust the final template range to exclude the pre-buffered token
-                            tok_end_backtrack = buffered_lexeme.range.len;
+                                // Adjust the final template range to exclude the pre-buffered token
+                                tok_end_backtrack = buffered_lexeme.range.len;
+                            }
 
-                            // break off, we still yield a template id
+                            // break off, we yield either a template or the source opening
                             break;
                         },
                         else => {
@@ -145,6 +164,23 @@ pub const Scanner = struct {
                     switch (slice[0]) {
                         '\t', ' ', '\x0b', '\x0c' => {
                             // Whitespace. Skip it
+                            tok_start += 1;
+                        },
+                        '\n' => {
+                            // Line break, skip it
+                            self.current_line += 1;
+                            tok_start += 1;
+                        },
+                        '\r' => {
+                            // Line break, check for a \r\n style break and skip past it
+                            const nextSlice = self.iterator.peek(1);
+                            if (nextSlice.len == 1 and '\n' == nextSlice[0]) {
+                                self.iterator.i += 1;
+                                tok_start += 1;
+                            }
+
+                            tok_start += 1;
+                            self.current_line += 1;
                         },
                         '$' => {
                             // Maybe the start of a source break
@@ -263,6 +299,12 @@ fn expectIdentifier(str: []const u8, scanner: *Scanner) !void {
     try expectIdRange(.identifier, str, scanner);
 }
 
+test "scane: empty string" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "");
+    try expectId(.eof, &scanner);
+}
+
 test "scan: utf-8 source + eof" {
     var allocator = std.testing.allocator;
     var scanner = try Scanner.initUtf8(allocator, "  { \n\t\r\nhello \u{1F30E}");
@@ -294,5 +336,33 @@ test "scan: simple source block (no ws)" {
     try expectIdentifier("world", &scanner);
     try expectId(.source_block_close, &scanner);
     try expectTemplate("!", &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: skip whitespace and new lines" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "hello\n  world\r\n{$ \n\nabc\r\n def$}");
+    try expectTemplate("hello\n  world\r\n", &scanner);
+    try expectId(.source_block_open, &scanner);
+    try expectIdentifier("abc", &scanner);
+    try expectIdentifier("def", &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+    try std.testing.expectEqual(@intCast(usize, 6), scanner.current_line);
+}
+
+test "scan: empty source" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$$}");
+    try expectId(.source_block_open, &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: whitespace only source" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$ \t\n$}");
+    try expectId(.source_block_open, &scanner);
+    try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
 }
