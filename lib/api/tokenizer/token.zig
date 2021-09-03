@@ -1,3 +1,4 @@
+const types = @import("../types.zig");
 
 pub const Token = struct {
     id: Id,
@@ -7,8 +8,14 @@ pub const Token = struct {
     pub const Id = union(enum) {
         template,
         identifier,
+        assignment,
+        number_literal: types.Number,
         source_block_open,
         source_block_close,
+        plus,
+        minus,
+        star,
+        kwd_let,
         eof,
     };
 

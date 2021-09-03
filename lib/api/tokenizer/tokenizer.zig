@@ -34,6 +34,16 @@ pub const Scanner = struct {
         unimplemented_error, // TODO: Remove this
     };
 
+    const Keyword = struct {
+        pub const keywords = std.ComptimeStringMap(Token.Id, .{
+            .{ "let", .kwd_let },
+        });
+
+        pub fn asID(name: []const u8) ?Id {
+            return keywords.get(name);
+        }
+    };
+
     pub fn initUtf8(allocator: *std.mem.Allocator, source: []const u8) !Self {
         const view = try std.unicode.Utf8View.init(source);
         return Self {
@@ -88,6 +98,7 @@ pub const Scanner = struct {
             capture_source,
             capture_source_break,
             capture_identifier,
+            capture_number,
         } = if (self.in_template) .capture_template else .capture_source;
 
         // The offset to where this capture started
@@ -137,7 +148,7 @@ pub const Scanner = struct {
                             // We're now scanning source code
                             self.in_template = false;
 
-                            if (position == 0) {
+                            if (position == tok_start) {
                                 // We captured no template data, skip the token
                                 lexeme.type = .source_block_open;
                             } else {
@@ -186,10 +197,32 @@ pub const Scanner = struct {
                             // Maybe the start of a source break
                             state = .capture_source_break;
                         },
+                        '=' => {
+                            lexeme.type = .assignment;
+                            break;
+                        },
+                        '+' => {
+                            lexeme.type = .plus;
+                            break;
+                        },
+                        '-' => {
+                            lexeme.type = .minus;
+                            break;
+                        },
+                        '*' => {
+                            lexeme.type = .star;
+                            break;
+                        },
+                        '0'...'9' => {
+                            state = .capture_number;
+                            lexeme.type = .{
+                                .number_literal = 0
+                            };
+                        },
                         'a'...'z', 'A'...'Z', '_' => {
                             // The beginning of an identifier
-                            lexeme.type = .identifier;
                             state = .capture_identifier;
+                            lexeme.type = .identifier;
                         },
                         else => {
                             std.debug.print("[Lex] Got unimplemented source token: {s}\n", .{slice});
@@ -222,6 +255,18 @@ pub const Scanner = struct {
                             break;
                         }
                     }
+                },
+                .capture_number => {
+                    switch (slice[0]) {
+                        '0'...'9' => {
+                            // Noop, capture and loop
+                        },
+                        else => {
+                            // End of the number. Backup and handle this next call
+                            self.backtrack(slice);
+                            break;
+                        }
+                    }
                 }
             }
         } else {
@@ -237,16 +282,33 @@ pub const Scanner = struct {
                 },
                 else => {
                     // Noop, state is good to exit this way
+                    // (ex. scanning a non-empty number/template/identifier)
                 }
             }
         }
+
+        // Assign the range according to any backtrack adjustments
+        lexeme.range = self.source[tok_start..self.iterator.i - tok_end_backtrack];
 
         // Fixup for reading nothing at all
         if (self.iterator.i == tok_start) {
             lexeme.type = .eof;
         }
 
-        lexeme.range = self.source[tok_start..self.iterator.i - tok_end_backtrack];
+        // Fixup for IDs that are actually kwds
+        if (lexeme.type == .identifier) {
+            if (verbose_logging) {
+                std.debug.print("[Lex] Got identifier: {s}\n", .{lexeme.range});
+            }
+
+            if (Keyword.asID(lexeme.range)) |id| {
+                lexeme.type = id;
+
+                if (verbose_logging) {
+                    std.debug.print("[Lex] Substituting id for kwd: {}\n", .{id});
+                }
+            }
+        }
 
         return Result(*Lexeme, *Error) {
             .ok = lexeme
@@ -359,10 +421,93 @@ test "scan: empty source" {
     try expectId(.eof, &scanner);
 }
 
+test "scan: double empty source" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$$}{$$}");
+    try expectId(.source_block_open, &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.source_block_open, &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+}
+
 test "scan: whitespace only source" {
     var allocator = std.testing.allocator;
     var scanner = try Scanner.initUtf8(allocator, "{$ \t\n$}");
     try expectId(.source_block_open, &scanner);
     try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: simple assignment" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$x= y z =w$}");
+    try expectId(.source_block_open, &scanner);
+    try expectIdentifier("x", &scanner);
+    try expectId(.assignment, &scanner);
+    try expectIdentifier("y", &scanner);
+    try expectIdentifier("z", &scanner);
+    try expectId(.assignment, &scanner);
+    try expectIdentifier("w", &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: simple number" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$ x=35 z = 0$}");
+    try expectId(.source_block_open, &scanner);
+    try expectIdentifier("x", &scanner);
+    try expectId(.assignment, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "35", &scanner);
+    try expectIdentifier("z", &scanner);
+    try expectId(.assignment, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "0", &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: simple addition" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$ x=35 z = x + 1 $}");
+    try expectId(.source_block_open, &scanner);
+    try expectIdentifier("x", &scanner);
+    try expectId(.assignment, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "35", &scanner);
+    try expectIdentifier("z", &scanner);
+    try expectId(.assignment, &scanner);
+    try expectIdentifier("x", &scanner);
+    try expectId(.plus, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "1", &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: simple arithmetic" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$3*-z+2--1");
+    try expectId(.source_block_open, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "3", &scanner);
+    try expectId(.star, &scanner);
+    try expectId(.minus, &scanner);
+    try expectIdentifier("z", &scanner);
+    try expectId(.plus, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "2", &scanner);
+    try expectId(.minus, &scanner);
+    try expectId(.minus, &scanner);
+    try expectIdRange(.{ .number_literal = 0 }, "1", &scanner);
+    try expectId(.eof, &scanner);
+}
+
+test "scan: let kwds" {
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "{$ let letx let$}{$ let");
+    try expectId(.source_block_open, &scanner);
+    try expectId(.kwd_let, &scanner);
+    try expectIdentifier("letx", &scanner);
+    try expectId(.kwd_let, &scanner);
+    try expectId(.source_block_close, &scanner);
+    try expectId(.source_block_open, &scanner);
+    try expectId(.kwd_let, &scanner);
     try expectId(.eof, &scanner);
 }
