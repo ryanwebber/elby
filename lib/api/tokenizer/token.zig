@@ -1,7 +1,7 @@
 const types = @import("../types.zig");
 
 pub const Token = struct {
-    id: Id,
+    type: Id,
     range: []const u8,
     lineno: usize,
 
