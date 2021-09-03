@@ -3,7 +3,7 @@ const types = @import("../types.zig");
 pub const Token = struct {
     type: Id,
     range: []const u8,
-    lineno: usize,
+    line: usize,
 
     pub const Id = union(enum) {
         template,

@@ -284,6 +284,7 @@ pub const Scanner = struct {
 
         // Assign the range according to any backtrack adjustments
         token.range = self.source[tok_start..self.iterator.i - tok_end_backtrack];
+        token.line = self.current_line;
 
         // Fixup for reading nothing at all
         if (self.iterator.i == tok_start) {
