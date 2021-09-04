@@ -5,6 +5,7 @@ const Token = tokens.Token;
 const Id = Token.Id;
 
 const Scanner = @import("scanner.zig").Scanner;
+const Error = @import("../error.zig").SyntaxError;
 const types = @import ("../types.zig");
 
 pub const Tokenizer = struct {
@@ -12,18 +13,6 @@ pub const Tokenizer = struct {
     source: []const u8,
     tokens: std.ArrayList(*Token),
     err: ?Error,
-
-    pub const Error = struct {
-        line: usize,
-        offset: usize,
-
-        pub fn init(token: *Token, source: []const u8) Error {
-            return .{
-                .line = token.line,
-                .offset = @ptrToInt(token.range.ptr) - @ptrToInt(source.ptr),
-            };
-        }
-    };
 
     const Self = @This();
 
@@ -49,11 +38,7 @@ pub const Tokenizer = struct {
                     }
                 },
                 .fail => |e| {
-                    err = .{
-                        .line = e.line,
-                        .offset = e.offset,
-                    };
-
+                    err = e;
                     break;
                 },
             }
@@ -89,6 +74,33 @@ pub const Tokenizer = struct {
 
         return null;
     }
+
+    pub fn iterator(self: *Tokenizer) TokenIterator {
+        return TokenIterator.init(self.*);
+    }
+};
+
+pub const TokenIterator = struct {
+    tokenizer: Tokenizer,
+    offset: usize,
+
+    const Self = @This();
+
+    pub fn init(tokenizer: Tokenizer) Self {
+        return .{
+            .tokenizer = tokenizer,
+            .offset = 0
+        };
+    }
+
+    pub fn next(self: *TokenIterator) ?*Token {
+        if (self.offset < self.tokenizer.tokens.items.len) {
+            defer { self.offset += 1; }
+            return self.tokenizer.tokens.items[self.offset];
+        } else {
+            return null;
+        }
+    }
 };
 
 test "tokenize: parse tokens success" {
@@ -99,6 +111,6 @@ test "tokenize: parse tokens success" {
     try std.testing.expectEqual(Token.Id { .number_literal = 2 }, tokenizer.tokens.items[4].type);
     try std.testing.expectEqual(Token.Id { .number_literal = 6512 }, tokenizer.tokens.items[6].type);
 
-    try std.testing.expectEqual(tokenizer.err, null);
+    try std.testing.expectEqual(@as(@TypeOf(tokenizer.err), null), tokenizer.err);
     try std.testing.expectEqual(@intCast(usize, 8), tokenizer.tokens.items.len);
 }

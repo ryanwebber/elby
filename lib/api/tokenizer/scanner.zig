@@ -5,8 +5,9 @@ const Token = tokens.Token;
 const Id = Token.Id;
 
 const Result = @import("../result.zig").Result;
+const Error = @import("../error.zig").SyntaxError;
 
-const verbose_logging = true;
+const verbose_logging = false;
 
 pub const Scanner = struct {
     allocator: *std.mem.Allocator,
@@ -17,11 +18,6 @@ pub const Scanner = struct {
     buffered_token: ?*Token,
 
     const Self = @This();
-
-    pub const Error = struct {
-        line: usize,
-        offset: usize,
-    };
 
     const ScannerError = error {
         invalid_state,
