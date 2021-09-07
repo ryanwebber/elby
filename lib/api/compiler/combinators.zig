@@ -60,6 +60,33 @@ pub fn immediate(comptime value: anytype) Parser(@TypeOf(value)) {
     return Local.parse;
 }
 
+pub fn id(comptime expected_id: Token.Id) Parser(void) {
+    const VoidProduction = Production(void);
+    const Local = struct {
+        fn parse(context: *Context) SystemError!VoidProduction {
+            const iterator = context.iterator;
+            if (iterator.next()) |tok| {
+                switch (tok.type) {
+                    expected_id => {
+                        return .value;
+                    },
+                    else => {
+                        return VoidProduction {
+                            .err = syntax_error.unexpectedToken(expected_id, tok),
+                        };
+                    }
+                }
+            } else {
+                return VoidProduction {
+                    .err = syntax_error.unexpectedEof(expected_id, iterator.current()),
+                };
+            }
+        }
+    };
+
+    return Local.parse;
+}
+
 pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)) {
     const TokenProduction = Production(Token.valueType(expected_id));
     const Local = struct {
@@ -109,8 +136,8 @@ pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value
 pub fn map(
         comptime FromValue: type,
         comptime ToValue: type,
-        parser: Parser(FromValue),
-        mapFn: fn(from: FromValue) ToValue)Parser(ToValue) {
+        mapFn: fn(from: FromValue) ToValue,
+        parser: Parser(FromValue))Parser(ToValue) {
     const MappedProduction = Production(ToValue);
     const Local = struct {
         fn parse(context: *Context) SystemError!MappedProduction {
@@ -159,8 +186,8 @@ fn SequenceParseStruct(comptime TupleType: type) type {
 
 pub fn sequence(
         comptime ResultType: type,
-        parsers: *const SequenceParseStruct(ResultType),
-        description: []const u8) Parser(ResultType) {
+        description: []const u8,
+        parsers: *const SequenceParseStruct(ResultType)) Parser(ResultType) {
     const SequenceProduction = Production(ResultType);
     const Local = struct {
         fn parse(context: *Context) SystemError!SequenceProduction {
@@ -194,7 +221,7 @@ test {
     comptime {
         const parser1 = token(.number_literal);
         _ = expect(types.Number, parser1);
-        _ = map(types.Number, u8, parser1, testMapFn);
+        _ = map(types.Number, u8, testMapFn, parser1);
     }
 }
 
@@ -211,7 +238,7 @@ test {
             .b = immediate(false),
         };
 
-        _ = sequence(MyStruct, &parseSequence, "Expected thingy");
+        _ = sequence(MyStruct, "test", &parseSequence);
     }
 }
 

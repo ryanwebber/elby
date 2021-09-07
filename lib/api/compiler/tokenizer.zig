@@ -65,9 +65,12 @@ pub const Tokenizer = struct {
                     return syntax_error.invalidNumberFormat(token);
                 };
             },
+            .identifier => |*value| {
+                value.* = token.range;
+            },
             else => {
                 // Nothing to evaluate
-            }
+            },
         }
 
         return null;

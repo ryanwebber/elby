@@ -11,7 +11,7 @@ pub const Token = struct {
     pub const Id = std.meta.TagType(Value);
 
     pub const Value = union(enum) {
-        identifier,
+        identifier: []const u8,
         assignment,
         number_literal: types.Number,
         plus,

@@ -21,7 +21,6 @@ pub const Scanner = struct {
     const ScannerError = error {
         invalid_state,
         unimplemented, // TODO: Remove this
-        unimplemented_error, // TODO: Remove this
     };
 
     const Keyword = struct {
@@ -148,7 +147,9 @@ pub const Scanner = struct {
                         'a'...'z', 'A'...'Z', '_' => {
                             // The beginning of an identifier
                             state = .capture_identifier;
-                            token.type = .identifier;
+                            token.type = .{
+                                .identifier = ""
+                            };
                         },
                         else => {
                             std.debug.print("[Lex] Got unimplemented source token: {s}\n", .{slice});

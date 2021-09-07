@@ -4,13 +4,17 @@ pub const NumberLiteral = struct {
     value: types.Number,
 };
 
+pub const Identifier = struct {
+    name: []const u8,
+};
+
 pub const Expression = union(enum) {
     number_literal: NumberLiteral,
 };
 
 pub const Definition = struct {
-    name: []const u8,
-    expr: Expression,
+    identifier: Identifier,
+    expression: Expression,
 };
 
-pub const Program = NumberLiteral;
+pub const Program = Definition;
