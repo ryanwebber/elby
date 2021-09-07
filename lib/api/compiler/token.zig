@@ -11,12 +11,9 @@ pub const Token = struct {
     pub const Id = std.meta.TagType(Value);
 
     pub const Value = union(enum) {
-        template,
         identifier,
         assignment,
         number_literal: types.Number,
-        source_block_open,
-        source_block_close,
         plus,
         minus,
         star,

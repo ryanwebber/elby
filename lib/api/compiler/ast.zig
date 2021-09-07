@@ -12,3 +12,5 @@ pub const Definition = struct {
     name: []const u8,
     expr: Expression,
 };
+
+pub const Program = NumberLiteral;

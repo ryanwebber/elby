@@ -3,17 +3,19 @@ const Token = @import("token.zig").Token;
 const TokenIterator = @import("tokenizer.zig").TokenIterator;
 const SystemError = @import("../error.zig").SystemError;
 
-const deviations = @import("deviation.zig");
+const syntax_error = @import("syntax_error.zig");
+const SyntaxError = syntax_error.SyntaxError;
+
 const types = @import("../types.zig");
 
 pub const ErrorAccumulator = struct {
-    errors: std.ArrayList(deviations.Deviation),
+    errors: std.ArrayList(SyntaxError),
 
     const Self = @This();
 
     pub fn init(allocator: *std.mem.Allocator) Self {
         return .{
-            .errors = std.ArrayList(deviations.Deviation).init(allocator),
+            .errors = std.ArrayList(SyntaxError).init(allocator),
         };
     }
 
@@ -21,7 +23,7 @@ pub const ErrorAccumulator = struct {
         self.errors.deinit();
     }
 
-    pub fn push(self: *Self, err: deviations.Deviation) !void {
+    pub fn push(self: *Self, err: SyntaxError) !void {
         try self.errors.append(err);
     }
 };
@@ -35,7 +37,7 @@ pub const Context = struct {
 pub fn Production(comptime Value: type) type {
     return union(enum) {
         value: Value,
-        err: deviations.Deviation,
+        err: SyntaxError,
     };
 }
 
@@ -72,13 +74,13 @@ pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)
                     },
                     else => {
                         return TokenProduction {
-                            .err = deviations.static(iterator.current(), "Unexpected token: TODO"),
+                            .err = syntax_error.unexpectedToken(expected_id, tok),
                         };
                     }
                 }
             } else {
                 return TokenProduction {
-                    .err = deviations.static(iterator.current(), "Unexpected end of source"),
+                    .err = syntax_error.unexpectedEof(expected_id, iterator.current()),
                 };
             }
         }
@@ -97,7 +99,6 @@ pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value
                 },
                 else => {}
             }
-
             return result;
         }
     };
@@ -156,7 +157,10 @@ fn SequenceParseStruct(comptime TupleType: type) type {
     });
 }
 
-pub fn sequence(comptime ResultType: type, parsers: *const SequenceParseStruct(ResultType)) Parser(ResultType) {
+pub fn sequence(
+        comptime ResultType: type,
+        parsers: *const SequenceParseStruct(ResultType),
+        description: []const u8) Parser(ResultType) {
     const SequenceProduction = Production(ResultType);
     const Local = struct {
         fn parse(context: *Context) SystemError!SequenceProduction {
@@ -171,7 +175,7 @@ pub fn sequence(comptime ResultType: type, parsers: *const SequenceParseStruct(R
                     },
                     else => { // `.err => {...}` crashes zig?
                         return SequenceProduction {
-                            .err = deviations.static(token_start, "Invalid sequence: TODO better message"),
+                            .err = syntax_error.expectedSequence(description, token_start),
                         };
                     }
                 }
@@ -207,7 +211,7 @@ test {
             .b = immediate(false),
         };
 
-        _ = sequence(MyStruct, &parseSequence);
+        _ = sequence(MyStruct, &parseSequence, "Expected thingy");
     }
 }
 

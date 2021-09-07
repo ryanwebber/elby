@@ -14,7 +14,6 @@ pub const Scanner = struct {
     iterator: std.unicode.Utf8Iterator,
     source: []const u8,
     current_line: usize,
-    in_template: bool,
     buffered_token: ?*Token,
 
     const Self = @This();
@@ -42,7 +41,6 @@ pub const Scanner = struct {
             .iterator = view.iterator(),
             .source = source,
             .current_line = 1,
-            .in_template = true,
             .buffered_token = null,
         };
     }
@@ -84,13 +82,10 @@ pub const Scanner = struct {
         errdefer { self.allocator.destroy(token); }
 
         var state: union(enum) {
-            capture_template,
-            capture_template_break: usize,
             capture_source,
-            capture_source_break,
             capture_identifier,
             capture_number,
-        } = if (self.in_template) .capture_template else .capture_source;
+        } = .capture_source;
 
         // The offset to where this capture started
         var tok_start = self.iterator.i;
@@ -106,62 +101,6 @@ pub const Scanner = struct {
             }
 
             switch (state) {
-                .capture_template => {
-                    token.type = .template;
-                    switch (slice[0]) {
-                        '{' => {
-                            state = .{
-                                .capture_template_break = self.iterator.i - slice.len,
-                            };
-                        },
-                        '\n' => {
-                            // Line break. Don't skip it since it's being templated but track it
-                            self.current_line += 1;
-                        },
-                        '\r' => {
-                            // Line break. Don't skip it since it's being templated but track it,
-                            // and don't increment the current line twice for a \r\n style break.
-                            const nextSlice = self.iterator.peek(1);
-                            if (nextSlice.len == 1 and '\n' == nextSlice[0]) {
-                                self.iterator.i += 1;
-                            }
-
-                            self.current_line += 1;
-                        },
-                        else => {
-                            // noop, capure and loop
-                        }
-                    }
-                },
-                .capture_template_break => |position| {
-                    switch (slice[0]) {
-                        '$' => {
-                            // We're now scanning source code
-                            self.in_template = false;
-
-                            if (position == tok_start) {
-                                // We captured no template data, skip the token
-                                token.type = .source_block_open;
-                            } else {
-                                // We captured template data, so keep it. We now also know the next token
-                                const buffered_token = try self.allocator.create(Token);
-                                buffered_token.type = .source_block_open;
-                                buffered_token.range = self.iterator.bytes[position..self.iterator.i];
-                                self.buffered_token = buffered_token;
-
-                                // Adjust the final template range to exclude the pre-buffered token
-                                tok_end_backtrack = buffered_token.range.len;
-                            }
-
-                            // break off, we yield either a template or the source opening
-                            break;
-                        },
-                        else => {
-                            // Not actually exiting the template, false alarm
-                            state = .capture_template;
-                        }
-                    }
-                },
                 .capture_source => {
                     switch (slice[0]) {
                         '\t', ' ', '\x0b', '\x0c' => {
@@ -183,10 +122,6 @@ pub const Scanner = struct {
 
                             tok_start += 1;
                             self.current_line += 1;
-                        },
-                        '$' => {
-                            // Maybe the start of a source break
-                            state = .capture_source_break;
                         },
                         '=' => {
                             token.type = .assignment;
@@ -221,20 +156,6 @@ pub const Scanner = struct {
                         },
                     }
                 },
-                .capture_source_break => {
-                    switch (slice[0]) {
-                        '}' => {
-                            // Transition to scanning template
-                            self.in_template = true;
-                            token.type = .source_block_close;
-                            break;
-                        },
-                        else => {
-                            // Invalid char sequence
-                            return ScannerError.unimplemented_error;
-                        }
-                    }
-                },
                 .capture_identifier => {
                     switch (slice[0]) {
                         'a'...'z', 'A'...'Z', '0'...'9', '_' => {
@@ -263,14 +184,6 @@ pub const Scanner = struct {
         } else {
             // EOF while scanning token
             switch (state) {
-                .capture_template_break => {
-                    // Didn't completely break from tempate capture, this is ok
-                    token.type = .template;
-                },
-                .capture_source_break => {
-                    // Error, got only a partial token match in a source block for ending it ('$')
-                    return ScannerError.unimplemented_error;
-                },
                 else => {
                     // Noop, state is good to exit this way
                     // (ex. scanning a non-empty number/template/identifier)
@@ -354,116 +267,62 @@ fn expectIdentifier(str: []const u8, scanner: *Scanner) !void {
     try expectIdRange(.identifier, str, scanner);
 }
 
-test "scane: empty string" {
+test "scan: empty string" {
     var allocator = std.testing.allocator;
     var scanner = try Scanner.initUtf8(allocator, "");
     try expectId(.eof, &scanner);
 }
 
-test "scan: utf-8 source + eof" {
+test "scan: identifier" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "  { \n\t\r\nhello \u{1F30E}");
-    try expectTemplate("  { \n\t\r\nhello 🌎", &scanner);
-    try expectId(.eof, &scanner);
-}
-
-test "scan: template + source open + identifier" {
-    var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "hello  {$world");
-    try expectTemplate("hello  ", &scanner);
-    try expectId(.source_block_open, &scanner);
-    try expectIdentifier("world", &scanner);
-    try expectId(.eof, &scanner);
-}
-
-test "scan: template ending with half break" {
-    var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "hello{");
-    try expectTemplate("hello{", &scanner);
-    try expectId(.eof, &scanner);
-}
-
-test "scan: simple source block (no ws)" {
-    var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "hello{$world$}!");
-    try expectTemplate("hello", &scanner);
-    try expectId(.source_block_open, &scanner);
-    try expectIdentifier("world", &scanner);
-    try expectId(.source_block_close, &scanner);
-    try expectTemplate("!", &scanner);
+    var scanner = try Scanner.initUtf8(allocator, "hello_world");
+    try expectIdentifier("hello_world", &scanner);
     try expectId(.eof, &scanner);
 }
 
 test "scan: skip whitespace and new lines" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "hello\n  world\r\n{$ \n\nabc\r\n def$}");
-    try expectTemplate("hello\n  world\r\n", &scanner);
-    try expectId(.source_block_open, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, "\t\n\nabc\r\n def \t\n");
     try expectIdentifier("abc", &scanner);
     try expectIdentifier("def", &scanner);
-    try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
-    try std.testing.expectEqual(@intCast(usize, 6), scanner.current_line);
+    try std.testing.expectEqual(@intCast(usize, 5), scanner.current_line);
 }
 
-test "scan: empty source" {
-    var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$$}");
-    try expectId(.source_block_open, &scanner);
-    try expectId(.source_block_close, &scanner);
-    try expectId(.eof, &scanner);
-}
 
-test "scan: double empty source" {
+test "scan: whitespace only" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$$}{$$}");
-    try expectId(.source_block_open, &scanner);
-    try expectId(.source_block_close, &scanner);
-    try expectId(.source_block_open, &scanner);
-    try expectId(.source_block_close, &scanner);
-    try expectId(.eof, &scanner);
-}
-
-test "scan: whitespace only source" {
-    var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$ \t\n$}");
-    try expectId(.source_block_open, &scanner);
-    try expectId(.source_block_close, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, "\t\n ");
     try expectId(.eof, &scanner);
 }
 
 test "scan: simple assignment" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$x= y z =w$}");
-    try expectId(.source_block_open, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, "x= y z =w");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdentifier("y", &scanner);
     try expectIdentifier("z", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdentifier("w", &scanner);
-    try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
 }
 
 test "scan: simple number" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$ x=35 z = 0$}");
-    try expectId(.source_block_open, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, " x=35 z = 0");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdRange(.number_literal, "35", &scanner);
     try expectIdentifier("z", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdRange(.number_literal, "0", &scanner);
-    try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
 }
 
 test "scan: simple addition" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$ x=35 z = x + 1 $}");
-    try expectId(.source_block_open, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, "x=35 z = x + 1");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdRange(.number_literal, "35", &scanner);
@@ -472,14 +331,12 @@ test "scan: simple addition" {
     try expectIdentifier("x", &scanner);
     try expectId(.plus, &scanner);
     try expectIdRange(.number_literal, "1", &scanner);
-    try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
 }
 
 test "scan: simple arithmetic" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$3*-z+2--1");
-    try expectId(.source_block_open, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, "3*-z+2--1");
     try expectIdRange(.number_literal, "3", &scanner);
     try expectId(.star, &scanner);
     try expectId(.minus, &scanner);
@@ -494,13 +351,10 @@ test "scan: simple arithmetic" {
 
 test "scan: let kwds" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "{$ let letx let$}{$ let");
-    try expectId(.source_block_open, &scanner);
+    var scanner = try Scanner.initUtf8(allocator, " let letx let\nlet");
     try expectId(.kwd_let, &scanner);
     try expectIdentifier("letx", &scanner);
     try expectId(.kwd_let, &scanner);
-    try expectId(.source_block_close, &scanner);
-    try expectId(.source_block_open, &scanner);
     try expectId(.kwd_let, &scanner);
     try expectId(.eof, &scanner);
 }

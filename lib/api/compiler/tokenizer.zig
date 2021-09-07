@@ -5,8 +5,10 @@ const Token = tokens.Token;
 const Id = Token.Id;
 
 const Scanner = @import("scanner.zig").Scanner;
-const SyntaxError = @import("syntax_error.zig").SyntaxError;
 const types = @import ("../types.zig");
+
+const syntax_error = @import("syntax_error.zig");
+const SyntaxError = syntax_error.SyntaxError;
 
 pub const Tokenizer = struct {
     allocator: *std.mem.Allocator,
@@ -60,7 +62,7 @@ pub const Tokenizer = struct {
         switch (token.type) {
             .number_literal => |*value| {
                 value.* = types.parseNumber(token.range) catch {
-                    return SyntaxError.init(token);
+                    return syntax_error.invalidNumberFormat(token);
                 };
             },
             else => {
@@ -106,12 +108,12 @@ pub const TokenIterator = struct {
 
 test "tokenize: parse tokens success" {
     var allocator = std.testing.allocator;
-    var tokenizer = try Tokenizer.tokenize(allocator, "{$ let i = 2 + 6512 $}");
+    var tokenizer = try Tokenizer.tokenize(allocator, "let i = 2 + 6512");
     defer { tokenizer.deinit(); }
 
-    try std.testing.expectEqual(Token.Value { .number_literal = 2 }, tokenizer.tokens.items[4].type);
-    try std.testing.expectEqual(Token.Value { .number_literal = 6512 }, tokenizer.tokens.items[6].type);
+    try std.testing.expectEqual(Token.Value { .number_literal = 2 }, tokenizer.tokens.items[3].type);
+    try std.testing.expectEqual(Token.Value { .number_literal = 6512 }, tokenizer.tokens.items[5].type);
 
-    try std.testing.expectEqual(@as(@TypeOf(tokenizer.err), null), tokenizer.err);
-    try std.testing.expectEqual(@intCast(usize, 9), tokenizer.tokens.items.len);
+    try std.testing.expect(tokenizer.err == null);
+    try std.testing.expectEqual(@intCast(usize, 7), tokenizer.tokens.items.len);
 }
