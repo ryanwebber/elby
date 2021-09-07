@@ -5,7 +5,7 @@ const Token = tokens.Token;
 const Id = Token.Id;
 
 const Result = @import("../result.zig").Result;
-const Error = @import("../error.zig").SyntaxError;
+const SyntaxError = @import("syntax_error.zig").SyntaxError;
 
 const verbose_logging = false;
 
@@ -26,11 +26,11 @@ pub const Scanner = struct {
     };
 
     const Keyword = struct {
-        pub const keywords = std.ComptimeStringMap(Token.Id, .{
+        pub const keywords = std.ComptimeStringMap(Token.Value, .{
             .{ "let", .kwd_let },
         });
 
-        pub fn asID(name: []const u8) ?Id {
+        pub fn asID(name: []const u8) ?Token.Value {
             return keywords.get(name);
         }
     };
@@ -47,7 +47,7 @@ pub const Scanner = struct {
         };
     }
 
-    pub fn next(self: *Self) !Result(*Token, Error) {
+    pub fn next(self: *Self) !Result(*Token, SyntaxError) {
         if (verbose_logging) {
             std.debug.print("\n[Lex] === Begin scan ===\n", .{});
         }
@@ -68,12 +68,12 @@ pub const Scanner = struct {
         return result;
     }
 
-    fn nextInternal(self: *Self) !Result(*Token, Error) {
+    fn nextInternal(self: *Self) !Result(*Token, SyntaxError) {
 
         // If we've pre-buffered something, yield it now
         if (self.buffered_token) |value| {
             self.buffered_token = null;
-            return Result(*Token, Error) {
+            return Result(*Token, SyntaxError) {
                 .ok = value,
             };
         }
@@ -280,6 +280,7 @@ pub const Scanner = struct {
 
         // Assign the range according to any backtrack adjustments
         token.range = self.source[tok_start..self.iterator.i - tok_end_backtrack];
+        token.offset = tok_start;
         token.line = self.current_line;
 
         // Fixup for reading nothing at all
@@ -302,7 +303,7 @@ pub const Scanner = struct {
             }
         }
 
-        return Result(*Token, Error) {
+        return Result(*Token, SyntaxError) {
             .ok = token
         };
     }
@@ -451,10 +452,10 @@ test "scan: simple number" {
     try expectId(.source_block_open, &scanner);
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "35", &scanner);
+    try expectIdRange(.number_literal, "35", &scanner);
     try expectIdentifier("z", &scanner);
     try expectId(.assignment, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "0", &scanner);
+    try expectIdRange(.number_literal, "0", &scanner);
     try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
 }
@@ -465,12 +466,12 @@ test "scan: simple addition" {
     try expectId(.source_block_open, &scanner);
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "35", &scanner);
+    try expectIdRange(.number_literal, "35", &scanner);
     try expectIdentifier("z", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdentifier("x", &scanner);
     try expectId(.plus, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "1", &scanner);
+    try expectIdRange(.number_literal, "1", &scanner);
     try expectId(.source_block_close, &scanner);
     try expectId(.eof, &scanner);
 }
@@ -479,15 +480,15 @@ test "scan: simple arithmetic" {
     var allocator = std.testing.allocator;
     var scanner = try Scanner.initUtf8(allocator, "{$3*-z+2--1");
     try expectId(.source_block_open, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "3", &scanner);
+    try expectIdRange(.number_literal, "3", &scanner);
     try expectId(.star, &scanner);
     try expectId(.minus, &scanner);
     try expectIdentifier("z", &scanner);
     try expectId(.plus, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "2", &scanner);
+    try expectIdRange(.number_literal, "2", &scanner);
     try expectId(.minus, &scanner);
     try expectId(.minus, &scanner);
-    try expectIdRange(.{ .number_literal = 0 }, "1", &scanner);
+    try expectIdRange(.number_literal, "1", &scanner);
     try expectId(.eof, &scanner);
 }
 

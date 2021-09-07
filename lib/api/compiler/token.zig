@@ -1,11 +1,16 @@
+const std = @import("std");
 const types = @import("../types.zig");
 
 pub const Token = struct {
-    type: Id,
+    type: Value,
     range: []const u8,
     line: usize,
+    offset: usize,
 
-    pub const Id = union(enum) {
+    // TODO: Remove and use @TagType in newer zig builds
+    pub const Id = std.meta.TagType(Value);
+
+    pub const Value = union(enum) {
         template,
         identifier,
         assignment,
@@ -18,6 +23,11 @@ pub const Token = struct {
         kwd_let,
         eof,
     };
+
+    // TODO: Is there a better way to do this?
+    pub fn valueType(comptime id: Id) type {
+        return std.meta.TagPayload(Value, id);
+    }
 
     pub fn description(self: *Token) []const u8 {
         return self.range;
