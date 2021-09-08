@@ -1,6 +1,9 @@
 const std = @import("std");
 const types = @import("../types.zig");
 
+const builtin = std.builtin.TypeInfo;
+
+
 pub const BinOp = enum {
     op_plus,
     op_minus,
@@ -8,12 +11,7 @@ pub const BinOp = enum {
     op_div,
 
     pub fn jsonStringify(self: BinOp, _: anytype, out_stream: anytype) !void {
-        try out_stream.writeAll(switch (self) {
-            .op_plus => "+",
-            .op_minus => "-",
-            .op_mul => "*",
-            .op_div => "/",
-        });
+        try out_stream.writeAll(@tagName(self));
     }
 };
 

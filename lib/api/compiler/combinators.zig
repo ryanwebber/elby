@@ -89,6 +89,18 @@ pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)
     return Local.parse;
 }
 
+pub fn id(comptime expected_id: Token.Id, comptime value: anytype) Parser(@TypeOf(value)) {
+    const FromType = Token.valueType(expected_id);
+    const ToType = @TypeOf(value);
+    const Local = struct {
+        fn map(_: FromType) ToType {
+            return value;
+        }
+    };
+
+    return map(FromType, ToType, Local.map, token(expected_id));
+}
+
 pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value) {
     const Local = struct {
         fn parse(context: *Context) SystemError!Production(Value) {
@@ -106,7 +118,7 @@ pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value
     return Local.parse;
 }
 
-pub fn map(
+pub fn mapAlloc(
         comptime FromValue: type,
         comptime ToValue: type,
         mapFn: fn(allocator: *std.mem.Allocator, from: FromValue) SystemError!ToValue,
@@ -132,6 +144,21 @@ pub fn map(
     return Local.parse;
 }
 
+pub fn map(
+        comptime FromValue: type,
+        comptime ToValue: type,
+        mapFn: fn(from: FromValue) ToValue,
+        parser: Parser(FromValue)) Parser(ToValue) {
+
+    const Local = struct {
+        fn mapNonAlloc(_: *std.mem.Allocator, from: FromValue) SystemError!ToValue {
+            return mapFn(from);
+        }
+    };
+
+    return mapAlloc(FromValue, ToValue, Local.mapNonAlloc, parser);
+}
+
 pub fn mapAst(
         comptime FromValue: type,
         comptime ToValue: type,
@@ -139,14 +166,14 @@ pub fn mapAst(
         parser: Parser(FromValue)) Parser(*ToValue) {
 
     const Local = struct {
-        fn mapAlloc(allocator: *std.mem.Allocator, from: FromValue) SystemError!*ToValue {
+        fn mapNode(allocator: *std.mem.Allocator, from: FromValue) SystemError!*ToValue {
             var node = try allocator.create(ToValue);
             node.* = mapFn(from);
             return node;
         }
     };
 
-    return map(FromValue, *ToValue, Local.mapAlloc, parser);
+    return mapAlloc(FromValue, *ToValue, Local.mapNode, parser);
 }
 
 /// Produces a struct with the same field names and order as the given one
@@ -207,15 +234,15 @@ pub fn sequence(
     return Local.parse;
 }
 
-pub fn any(comptime Value: type, description: []const u8, parsers: []const Parser(Value)) Parser(Value) {
-    const AnyProduction = Production(Value);
+pub fn oneOf(comptime Value: type, description: []const u8, parsers: []const Parser(Value)) Parser(Value) {
+    const OneOfProduction = Production(Value);
     const Local = struct {
-        fn parse(context: *Context) SystemError!AnyProduction {
+        fn parse(context: *Context) SystemError!OneOfProduction {
             const offset = context.iterator.offset;
             for (parsers) |parser| {
                 switch (try parser(context)) {
                     .value => |value| {
-                        return AnyProduction {
+                        return OneOfProduction {
                             .value = value,
                         };
                     },
@@ -226,9 +253,50 @@ pub fn any(comptime Value: type, description: []const u8, parsers: []const Parse
                 }
             }
 
-            return AnyProduction {
+            return OneOfProduction {
                 .err = syntax_error.expectedSequence(description, context.iterator.current())
             };
+        }
+    };
+
+    return Local.parse;
+}
+
+pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8, parser: Parser(Value)) Parser([]const Value) {
+    const AtLeastProduction = Production([]const Value);
+    const Local = struct {
+        fn parse(context: *Context) SystemError!AtLeastProduction {
+
+            // Content are owned by the caller when this returns
+            var parses = std.ArrayList(Value).init(context.allocator);
+            defer { parses.deinit(); }
+
+            var offset = context.iterator.offset;
+            var i: usize = 0;
+            while (true) {
+                switch (try parser(context)) {
+                    .value => |value| {
+                        i += 1;
+                        offset = context.iterator.offset;
+                        try parses.append(value);
+                    },
+                    .err => {
+                        if (i < n) {
+                            // Didn't parse enough. Error and exit
+                            return AtLeastProduction {
+                                .err = syntax_error.expectedSequence(description, context.iterator.tokenizer.tokens.items[offset])
+                            };
+                        } else {
+                            // Parsed enough times. Wipe the error, reset the iterator to the
+                            // last successful position, and exit
+                            context.iterator.offset = offset;
+                            return AtLeastProduction {
+                                .value = parses.toOwnedSlice()
+                            };
+                        }
+                    }
+                }
+            }
         }
     };
 
@@ -239,7 +307,7 @@ test {
     comptime {
 
         const Local = struct {
-            fn testMapFn(_: *std.mem.Allocator, _:types.Number) SystemError!u8 {
+            fn testMapFn(_:types.Number) u8 {
                 return 0;
             }
         };
