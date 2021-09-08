@@ -2,20 +2,40 @@ const std = @import("std");
 const ast = @import("../ast.zig");
 const runner = @import("runner.zig");
 
+const Parser = @import("../parser.zig").Parser;
+
 test "parse number" {
     const allocator = std.testing.allocator;
     const source = "let x = 82";
-    const program = try runner.parse(allocator, source);
-    defer { allocator.destroy(program); }
+    var parse = try Parser.parse(allocator, source);
+    defer { parse.deinit(); }
 
     try runner.expectEqualAst(allocator, &.{
-        .identifier = .{
+        .identifier = &.{
             .name = "x"
         },
-        .expression = .{
-            .number_literal = .{
+        .expression = &.{
+            .number_literal = &.{
                 .value = 82
             }
         }
-    }, program);
+    }, &parse);
+}
+
+test "parse identifier" {
+    const allocator = std.testing.allocator;
+    const source = "let x = y";
+    var parse = try Parser.parse(allocator, source);
+    defer { parse.deinit(); }
+
+    try runner.expectEqualAst(allocator, &.{
+        .identifier = &.{
+            .name = "x"
+        },
+        .expression = &.{
+            .identifier = &.{
+                .name = "y"
+            }
+        }
+    }, &parse);
 }

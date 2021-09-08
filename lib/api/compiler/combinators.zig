@@ -60,33 +60,6 @@ pub fn immediate(comptime value: anytype) Parser(@TypeOf(value)) {
     return Local.parse;
 }
 
-pub fn id(comptime expected_id: Token.Id) Parser(void) {
-    const VoidProduction = Production(void);
-    const Local = struct {
-        fn parse(context: *Context) SystemError!VoidProduction {
-            const iterator = context.iterator;
-            if (iterator.next()) |tok| {
-                switch (tok.type) {
-                    expected_id => {
-                        return .value;
-                    },
-                    else => {
-                        return VoidProduction {
-                            .err = syntax_error.unexpectedToken(expected_id, tok),
-                        };
-                    }
-                }
-            } else {
-                return VoidProduction {
-                    .err = syntax_error.unexpectedEof(expected_id, iterator.current()),
-                };
-            }
-        }
-    };
-
-    return Local.parse;
-}
-
 pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)) {
     const TokenProduction = Production(Token.valueType(expected_id));
     const Local = struct {
@@ -136,15 +109,15 @@ pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value
 pub fn map(
         comptime FromValue: type,
         comptime ToValue: type,
-        mapFn: fn(from: FromValue) ToValue,
-        parser: Parser(FromValue))Parser(ToValue) {
+        mapFn: fn(allocator: *std.mem.Allocator, from: FromValue) SystemError!ToValue,
+        parser: Parser(FromValue)) Parser(ToValue) {
     const MappedProduction = Production(ToValue);
     const Local = struct {
         fn parse(context: *Context) SystemError!MappedProduction {
             switch (try parser(context)) {
                 .value => |value| {
                     return MappedProduction {
-                        .value = mapFn(value)
+                        .value = try mapFn(context.allocator, value)
                     };
                 },
                 .err => |err| {
@@ -157,6 +130,23 @@ pub fn map(
     };
 
     return Local.parse;
+}
+
+pub fn mapAst(
+        comptime FromValue: type,
+        comptime ToValue: type,
+        mapFn: fn(from: FromValue) ToValue,
+        parser: Parser(FromValue)) Parser(*ToValue) {
+
+    const Local = struct {
+        fn mapAlloc(allocator: *std.mem.Allocator, from: FromValue) SystemError!*ToValue {
+            var node = try allocator.create(ToValue);
+            node.* = mapFn(from);
+            return node;
+        }
+    };
+
+    return map(FromValue, *ToValue, Local.mapAlloc, parser);
 }
 
 /// Produces a struct with the same field names and order as the given one
@@ -217,11 +207,46 @@ pub fn sequence(
     return Local.parse;
 }
 
+pub fn any(comptime Value: type, description: []const u8, parsers: []const Parser(Value)) Parser(Value) {
+    const AnyProduction = Production(Value);
+    const Local = struct {
+        fn parse(context: *Context) SystemError!AnyProduction {
+            const offset = context.iterator.offset;
+            for (parsers) |parser| {
+                switch (try parser(context)) {
+                    .value => |value| {
+                        return AnyProduction {
+                            .value = value,
+                        };
+                    },
+                    .err => {
+                        // reset the offset and try the next parser
+                        context.iterator.offset = offset;
+                    }
+                }
+            }
+
+            return AnyProduction {
+                .err = syntax_error.expectedSequence(description, context.iterator.current())
+            };
+        }
+    };
+
+    return Local.parse;
+}
+
 test {
     comptime {
+
+        const Local = struct {
+            fn testMapFn(_: *std.mem.Allocator, _:types.Number) SystemError!u8 {
+                return 0;
+            }
+        };
+
         const parser1 = token(.number_literal);
         _ = expect(types.Number, parser1);
-        _ = map(types.Number, u8, testMapFn, parser1);
+        _ = map(types.Number, u8, Local.testMapFn, parser1);
     }
 }
 
@@ -240,9 +265,4 @@ test {
 
         _ = sequence(MyStruct, "test", &parseSequence);
     }
-}
-
-fn testMapFn(_:
- types.Number) u8 {
-    return 0;
 }

@@ -1,4 +1,21 @@
+const std = @import("std");
 const types = @import("../types.zig");
+
+pub const BinOp = enum {
+    op_plus,
+    op_minus,
+    op_mul,
+    op_div,
+
+    pub fn jsonStringify(self: BinOp, _: anytype, out_stream: anytype) !void {
+        try out_stream.writeAll(switch (self) {
+            .op_plus => "+",
+            .op_minus => "-",
+            .op_mul => "*",
+            .op_div => "/",
+        });
+    }
+};
 
 pub const NumberLiteral = struct {
     value: types.Number,
@@ -9,12 +26,18 @@ pub const Identifier = struct {
 };
 
 pub const Expression = union(enum) {
-    number_literal: NumberLiteral,
+    number_literal: *const NumberLiteral,
+    identifier: *const Identifier,
+    binary_expression: struct {
+        lhs: *const Expression,
+        op: BinOp,
+        rhs: *const Expression
+    },
 };
 
 pub const Definition = struct {
-    identifier: Identifier,
-    expression: Expression,
+    identifier: *const Identifier,
+    expression: *const Expression,
 };
 
 pub const Program = Definition;

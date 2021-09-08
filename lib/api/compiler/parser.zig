@@ -5,36 +5,57 @@ const SyntaxError = @import("syntax_error.zig").SyntaxError;
 const Context = @import("combinators.zig").Context;
 const ErrorAccumulator = @import("combinators.zig").ErrorAccumulator;
 
+const visitor = @import("visitor.zig");
 const parseProgram = @import("grammar.zig").parser;
 
-pub fn Parse(comptime AST: type) type {
+pub const Parse = struct {
+    allocator: *std.mem.Allocator,
+    result: Result,
 
+    const Self = @This();
     const Result = union(enum) {
-        ok: AST,
+        ok: *ast.Program,
         fail: []const SyntaxError
     };
 
-    return struct {
-        allocator: *std.mem.Allocator,
-        result: Result,
+    pub fn init(allocator: *std.mem.Allocator, result: Result) Self {
+        return .{
+            .allocator = allocator,
+            .result = result,
+        };
+    }
 
-        const Self = @This();
+    pub fn deinit(self: *Self) void {
+        switch (self.result) {
+            .ok => |program| {
 
-        pub fn init(allocator: *std.mem.Allocator, result: Result) Self {
-            return .{
-                .allocator = allocator,
-                .result = result,
-            };
+                visitor.visit(*Self, self, program, &.{
+                    .visitNumberLiteral = NodeDeallocator(ast.NumberLiteral),
+                    .visitIdentifier = NodeDeallocator(ast.Identifier),
+                    .visitExpression = NodeDeallocator(ast.Expression),
+                    .visitDefinition = NodeDeallocator(ast.Definition),
+                    .visitProgram = null,
+                });
+            },
+            .fail => |errors| {
+                self.allocator.free(errors);
+            }
         }
+    }
 
-        pub fn deinit(_: *Self) void {
-            // TODO
-        }
-    };
-}
+    fn NodeDeallocator(comptime NodeType: type) fn(parse: *Self, node: *const NodeType) void {
+        const Local = struct {
+            fn visit(self: *Self, node: *const NodeType) void {
+                self.allocator.destroy(node);
+            }
+        };
+
+        return Local.visit;
+    }
+};
 
 pub const Parser = struct {
-    pub fn parse(allocator: *std.mem.Allocator, source: []const u8) !Parse(*ast.Program) {
+    pub fn parse(allocator: *std.mem.Allocator, source: []const u8) !Parse {
         var tokenizer = try Tokenizer.tokenize(allocator, source);
         var iterator = tokenizer.iterator();
         var err_accumulator = ErrorAccumulator.init(allocator);
@@ -56,15 +77,12 @@ pub const Parser = struct {
         const parser_result = try parseProgram(&context);
         switch (parser_result) {
             .value => |value| {
-                var ast_root = try allocator.create(ast.Program);
-                ast_root.* = value;
-
-                return Parse(*ast.Program).init(allocator, .{
-                    .ok = ast_root,
+                return Parse.init(allocator, .{
+                    .ok = value,
                 });
             },
             else => {
-                return Parse(*ast.Program).init(allocator, .{
+                return Parse.init(allocator, .{
                     .fail = err_accumulator.errors.toOwnedSlice(),
                 });
             }
