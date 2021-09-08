@@ -8,7 +8,7 @@ test "parse number" {
     const program = try runner.parse(allocator, source);
     defer { allocator.destroy(program); }
 
-    try runner.expectEqualAst(&.{
+    try runner.expectEqualAst(allocator, &.{
         .identifier = .{
             .name = "x"
         },

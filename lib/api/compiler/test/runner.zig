@@ -29,34 +29,22 @@ pub fn parse(allocator: *std.mem.Allocator, source: []const u8) !*ast.Program {
     }
 }
 
-pub fn expectEqualAst(expected: *const ast.Program, actual: *const ast.Program) !void {
-    const Utils = struct {
-        fn expectEqualIdentifiers(lhs: *const ast.Identifier, rhs: *const ast.Identifier) !void {
-            try std.testing.expectEqualStrings(lhs.name, rhs.name);
-        }
+pub fn expectEqualAst(allocator: *std.mem.Allocator, expected: *const ast.Program, actual: *const ast.Program) !void {
 
-        fn expectEqualNumberLiterals(lhs: *const ast.NumberLiteral, rhs: *const ast.NumberLiteral) !void {
-            try std.testing.expectEqual(lhs.value, rhs.value);
-        }
+    var expected_json_container = std.ArrayList(u8).init(allocator);
+    defer { expected_json_container.deinit(); }
 
-        fn expectEqualExpressions(lhs: *const ast.Expression, rhs: *const ast.Expression) !void {
-            switch (lhs.*) {
-                .number_literal => {
-                    try std.testing.expectEqual(ast.Expression.number_literal, rhs.*);
-                    try expectEqualNumberLiterals(&lhs.number_literal, &rhs.number_literal);
-                },
-            }
-        }
+    var actual_json_container = std.ArrayList(u8).init(allocator);
+    defer { actual_json_container.deinit(); }
 
-        fn expectEqualDefinitions(lhs: *const ast.Definition, rhs: *const ast.Program) !void {
-            try expectEqualIdentifiers(&lhs.identifier, &rhs.identifier);
-            try expectEqualExpressions(&lhs.expression, &rhs.expression);
-        }
-
-        fn expectEqualProgram(lhs: *const ast.Program, rhs: *const ast.Program) !void {
-            try expectEqualDefinitions(lhs, rhs);
+    const jsonOptions: std.json.StringifyOptions = .{
+        .whitespace = .{
         }
     };
 
-    try Utils.expectEqualProgram(expected, actual);
+    // pretty-printed string equality checks are really easy to read
+    try std.json.stringify(expected, jsonOptions, expected_json_container.writer());
+    try std.json.stringify(actual, jsonOptions, actual_json_container.writer());
+
+    try std.testing.expectEqualStrings(expected_json_container.items, actual_json_container.items);
 }
