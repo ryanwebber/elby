@@ -60,6 +60,23 @@ pub fn immediate(comptime value: anytype) Parser(@TypeOf(value)) {
     return Local.parse;
 }
 
+pub fn eof() Parser(void) {
+    const VoidProduction = Production(void);
+    const Local = struct {
+        fn parse(context: *Context) SystemError!VoidProduction {
+            if (context.iterator.next()) |tok| {
+                return VoidProduction {
+                    .err = syntax_error.unexpectedToken(.eof, tok),
+                };
+            } else {
+                return VoidProduction.value;
+            }
+        }
+    };
+
+    return Local.parse;
+}
+
 pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)) {
     const TokenProduction = Production(Token.valueType(expected_id));
     const Local = struct {
@@ -210,10 +227,17 @@ pub fn sequence(
         fn parse(context: *Context) SystemError!SequenceProduction {
             const token_start = context.iterator.current();
             var result: ResultType = undefined;
-            inline for (std.meta.fields(ResultType)) |field_info| {
+            inline for (std.meta.fields(ResultType)) |field_info, idx| {
                 const field_parser: Parser(field_info.field_type) = @field(parsers, field_info.name);
-                const production = try field_parser(context);
-                switch (production) {
+
+                // After the first parser in the sequence, publish the errors
+                const enhanced_parser = if (idx > 0)
+                    expect(field_info.field_type, field_parser)
+                else
+                    field_parser
+                ;
+
+                switch (try enhanced_parser(context)) {
                     .value => |value| {
                         @field(result, field_info.name) = value;
                     },
@@ -297,6 +321,16 @@ pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8,
                     }
                 }
             }
+        }
+    };
+
+    return Local.parse;
+}
+
+pub fn lazy(comptime Value: type, provider: fn() Parser(Value)) Parser(Value) {
+    const Local = struct {
+        fn parse(context: *Context) SystemError!Production(Value) {
+            return try provider()(context);
         }
     };
 

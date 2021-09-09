@@ -7,8 +7,10 @@ const Parser = combinators.Parser;
 const SystemError = @import("../error.zig").SystemError;
 
 const atLeast = combinators.atLeast;
+const eof = combinators.eof();
 const expect = combinators.expect;
 const id = combinators.id;
+const lazy = combinators.lazy;
 const map = combinators.map;
 const mapAlloc = combinators.mapAlloc;
 const mapAst = combinators.mapAst;
@@ -40,6 +42,11 @@ const Primary = struct {
     pub const parser: Parser(*ast.Expression) = oneOf(*ast.Expression, "primary", &[_]Parser(*ast.Expression) {
         mapAst(*ast.NumberLiteral, ast.Expression, mapNumber, Number.parser),
         mapAst(*ast.Identifier, ast.Expression, mapIdentifier, Identifier.parser),
+        map(BracketedExpr, *ast.Expression, mapBrackets, sequence(BracketedExpr, "( <expression> )", &.{
+            .left_paren = token(.left_paren),
+            .expr = lazy(*ast.Expression, Expression.lazy),
+            .right_paren = token(.right_paren),
+        })),
     });
 
     fn mapNumber(from: *ast.NumberLiteral) ast.Expression {
@@ -53,6 +60,16 @@ const Primary = struct {
             .identifier = from,
         };
     }
+
+    fn mapBrackets(from: BracketedExpr) *ast.Expression {
+        return from.expr;
+    }
+
+    const BracketedExpr = struct {
+        left_paren: void,
+        expr: *ast.Expression,
+        right_paren: void,
+    };
 };
 
 const Factor = Primary;
@@ -70,6 +87,10 @@ const Expression = struct {
             .rhs = Term.parser
         })),
     }));
+
+    pub fn lazy() Parser(*ast.Expression) {
+        return parser;
+    }
 
     const LhsOpRhs = struct {
         lhs: *ast.Expression,
@@ -133,5 +154,21 @@ const Definition = struct {
     }
 };
 
-pub const RootProduction = combinators.Production(ast.Program);
-pub const parser = expect(*ast.Program, Definition.parser);
+const Root = struct {
+
+    pub const parser: Parser(*ast.Program) = map(ProgramParse, *ast.Program, mapProgram, sequence(ProgramParse, "program", &.{
+        .program = Definition.parser,
+        .eof = eof,
+    }));
+
+    const ProgramParse = struct {
+        program: *ast.Program,
+        eof: void,
+    };
+
+    fn mapProgram(from: ProgramParse) *ast.Definition {
+        return from.program;
+    }
+};
+
+pub const parser = expect(*ast.Program, Root.parser);

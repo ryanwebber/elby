@@ -138,6 +138,14 @@ pub const Scanner = struct {
                             token.type = .star;
                             break;
                         },
+                        '(' => {
+                            token.type = .left_paren;
+                            break;
+                        },
+                        ')' => {
+                            token.type = .right_paren;
+                            break;
+                        },
                         '0'...'9' => {
                             state = .capture_number;
                             token.type = .{

@@ -17,6 +17,8 @@ pub const Token = struct {
         plus,
         minus,
         star,
+        left_paren,
+        right_paren,
         kwd_let,
         eof,
     };

@@ -77,3 +77,41 @@ test "parse left-associative term expression" {
         }
     }, &parse);
 }
+
+test "parse bracketed expr" {
+    const allocator = std.testing.allocator;
+    const source = "let x = y - (1 + 2)";
+    var parse = try Parser.parse(allocator, source);
+    defer { parse.deinit(); }
+
+    try runner.expectEqualAst(allocator, &.{
+        .identifier = &.{
+            .name = "x"
+        },
+        .expression = &.{
+            .binary_expression = .{
+                .lhs = &.{
+                    .identifier = &.{
+                        .name = "y"
+                    }
+                },
+                .op = ast.BinOp.op_minus,
+                .rhs = &.{
+                    .binary_expression = .{
+                        .lhs = &.{
+                            .number_literal = &.{
+                                .value = 1
+                            }
+                        },
+                        .op = ast.BinOp.op_plus,
+                        .rhs = &.{
+                            .number_literal = &.{
+                                .value = 2
+                            }
+                        }
+                    }
+                },
+            }
+        },
+    }, &parse);
+}
