@@ -31,7 +31,17 @@ pub const ErrorAccumulator = struct {
 pub const Context = struct {
     allocator: *std.mem.Allocator,
     iterator: *TokenIterator,
-    errorHandler: *ErrorAccumulator
+    errorHandler: *ErrorAccumulator,
+
+    const Self = @This();
+
+    fn swapIn(self: *Self, errorHandler: *ErrorAccumulator) Context {
+        return .{
+            .allocator = self.allocator,
+            .iterator = self.iterator,
+            .errorHandler = errorHandler,
+        };
+    }
 };
 
 pub fn Production(comptime Value: type) type {
@@ -42,27 +52,35 @@ pub fn Production(comptime Value: type) type {
 }
 
 pub fn Parser(comptime Value: type) type {
-    return fn(context: *Context) SystemError!Production(Value);
+    return struct {
+        parse: fn(context: *Context) SystemError!Production(Value),
+    };
+}
+
+pub fn MakeParser(comptime Value: type, Container: type) Parser(Value) {
+    return .{
+        .parse = Container.parse,
+    };
 }
 
 // Combinators
 
 pub fn immediate(comptime value: anytype) Parser(@TypeOf(value)) {
-    const ImmediateProduction = Production(@TypeOf(value));
-    const Local = struct {
+    const Value = @TypeOf(value);
+    const ImmediateProduction = Production(Value);
+    return MakeParser(Value, struct {
         fn parse(_: *Context) SystemError!ImmediateProduction {
             return ImmediateProduction {
                 .value = value,
             };
         }
-    };
-
-    return Local.parse;
+    });
 }
 
 pub fn eof() Parser(void) {
+    const Value = void;
     const VoidProduction = Production(void);
-    const Local = struct {
+    return MakeParser(Value, struct {
         fn parse(context: *Context) SystemError!VoidProduction {
             if (context.iterator.next()) |tok| {
                 return VoidProduction {
@@ -72,14 +90,13 @@ pub fn eof() Parser(void) {
                 return VoidProduction.value;
             }
         }
-    };
-
-    return Local.parse;
+    });
 }
 
 pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)) {
-    const TokenProduction = Production(Token.valueType(expected_id));
-    const Local = struct {
+    const Value = Token.valueType(expected_id);
+    const TokenProduction = Production(Value);
+    return MakeParser(Value, struct {
         fn parse(context: *Context) SystemError!TokenProduction {
             const iterator = context.iterator;
             if (iterator.next()) |tok| {
@@ -101,27 +118,26 @@ pub fn token(comptime expected_id: Token.Id) Parser(Token.valueType(expected_id)
                 };
             }
         }
-    };
-
-    return Local.parse;
+    });
 }
 
 pub fn id(comptime expected_id: Token.Id, comptime value: anytype) Parser(@TypeOf(value)) {
     const FromType = Token.valueType(expected_id);
     const ToType = @TypeOf(value);
+
     const Local = struct {
         fn map(_: FromType) ToType {
             return value;
         }
     };
 
-    return map(FromType, ToType, Local.map, token(expected_id));
+    return mapValue(FromType, ToType, Local.map, token(expected_id));
 }
 
 pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value) {
-    const Local = struct {
+    return MakeParser(Value, struct {
         fn parse(context: *Context) SystemError!Production(Value) {
-            const result = try parser(context);
+            const result = try parser.parse(context);
             switch (result) {
                 .err => |err| {
                     try context.errorHandler.push(err);
@@ -130,20 +146,18 @@ pub fn expect(comptime Value: type, comptime parser: Parser(Value)) Parser(Value
             }
             return result;
         }
-    };
-
-    return Local.parse;
+    });
 }
 
-pub fn mapAlloc(
+pub fn map(
         comptime FromValue: type,
         comptime ToValue: type,
         mapFn: fn(allocator: *std.mem.Allocator, from: FromValue) SystemError!ToValue,
         parser: Parser(FromValue)) Parser(ToValue) {
     const MappedProduction = Production(ToValue);
-    const Local = struct {
+    return MakeParser(ToValue, struct {
         fn parse(context: *Context) SystemError!MappedProduction {
-            switch (try parser(context)) {
+            switch (try parser.parse(context)) {
                 .value => |value| {
                     return MappedProduction {
                         .value = try mapFn(context.allocator, value)
@@ -156,41 +170,39 @@ pub fn mapAlloc(
                 }
             }
         }
-    };
-
-    return Local.parse;
+    });
 }
 
-pub fn map(
+pub fn mapValue(
         comptime FromValue: type,
         comptime ToValue: type,
         mapFn: fn(from: FromValue) ToValue,
         parser: Parser(FromValue)) Parser(ToValue) {
 
     const Local = struct {
-        fn mapNonAlloc(_: *std.mem.Allocator, from: FromValue) SystemError!ToValue {
+        fn mapValueInternal(_: *std.mem.Allocator, from: FromValue) SystemError!ToValue {
             return mapFn(from);
         }
     };
 
-    return mapAlloc(FromValue, ToValue, Local.mapNonAlloc, parser);
+    return map(FromValue, ToValue, Local.mapValueInternal, parser);
 }
 
-pub fn mapAst(
+pub fn mapAlloc(
         comptime FromValue: type,
         comptime ToValue: type,
         mapFn: fn(from: FromValue) ToValue,
         parser: Parser(FromValue)) Parser(*ToValue) {
 
     const Local = struct {
-        fn mapNode(allocator: *std.mem.Allocator, from: FromValue) SystemError!*ToValue {
+        fn mapInternal(allocator: *std.mem.Allocator, from: FromValue) SystemError!*ToValue {
             var node = try allocator.create(ToValue);
             node.* = mapFn(from);
             return node;
         }
     };
 
-    return mapAlloc(FromValue, *ToValue, Local.mapNode, parser);
+    return map(FromValue, *ToValue, Local.mapInternal, parser);
 }
 
 /// Produces a struct with the same field names and order as the given one
@@ -219,15 +231,15 @@ fn SequenceParseStruct(comptime TupleType: type) type {
 }
 
 pub fn sequence(
-        comptime ResultType: type,
+        comptime Value: type,
         description: []const u8,
-        parsers: *const SequenceParseStruct(ResultType)) Parser(ResultType) {
-    const SequenceProduction = Production(ResultType);
-    const Local = struct {
+        parsers: *const SequenceParseStruct(Value)) Parser(Value) {
+    const SequenceProduction = Production(Value);
+    return MakeParser(Value, struct {
         fn parse(context: *Context) SystemError!SequenceProduction {
             const token_start = context.iterator.current();
-            var result: ResultType = undefined;
-            inline for (std.meta.fields(ResultType)) |field_info, idx| {
+            var result: Value = undefined;
+            inline for (std.meta.fields(Value)) |field_info, idx| {
                 const field_parser: Parser(field_info.field_type) = @field(parsers, field_info.name);
 
                 // After the first parser in the sequence, publish the errors
@@ -237,7 +249,7 @@ pub fn sequence(
                     field_parser
                 ;
 
-                switch (try enhanced_parser(context)) {
+                switch (try enhanced_parser.parse(context)) {
                     .value => |value| {
                         @field(result, field_info.name) = value;
                     },
@@ -253,18 +265,16 @@ pub fn sequence(
                 .value = result
             };
         }
-    };
-
-    return Local.parse;
+    });
 }
 
-pub fn oneOf(comptime Value: type, description: []const u8, parsers: []const Parser(Value)) Parser(Value) {
+pub fn first(comptime Value: type, description: []const u8, parsers: []const Parser(Value)) Parser(Value) {
     const OneOfProduction = Production(Value);
-    const Local = struct {
+    return MakeParser(Value, struct {
         fn parse(context: *Context) SystemError!OneOfProduction {
             const offset = context.iterator.offset;
             for (parsers) |parser| {
-                switch (try parser(context)) {
+                switch (try parser.parse(context)) {
                     .value => |value| {
                         return OneOfProduction {
                             .value = value,
@@ -278,17 +288,15 @@ pub fn oneOf(comptime Value: type, description: []const u8, parsers: []const Par
             }
 
             return OneOfProduction {
-                .err = syntax_error.expectedSequence(description, context.iterator.current())
+                .err = syntax_error.unmatchedSet(description, context.iterator.tokenizer.tokens.items[offset])
             };
         }
-    };
-
-    return Local.parse;
+    });
 }
 
 pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8, parser: Parser(Value)) Parser([]const Value) {
     const AtLeastProduction = Production([]const Value);
-    const Local = struct {
+    return MakeParser([]const Value, struct {
         fn parse(context: *Context) SystemError!AtLeastProduction {
 
             // Content are owned by the caller when this returns
@@ -298,7 +306,7 @@ pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8,
             var offset = context.iterator.offset;
             var i: usize = 0;
             while (true) {
-                switch (try parser(context)) {
+                switch (try parser.parse(context)) {
                     .value => |value| {
                         i += 1;
                         offset = context.iterator.offset;
@@ -306,7 +314,7 @@ pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8,
                     },
                     .err => {
                         if (i < n) {
-                            // Didn't parse enough. Error and exit
+                            // Didn't parse enough. Propogate errors and exit
                             return AtLeastProduction {
                                 .err = syntax_error.expectedSequence(description, context.iterator.tokenizer.tokens.items[offset])
                             };
@@ -322,19 +330,15 @@ pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8,
                 }
             }
         }
-    };
-
-    return Local.parse;
+    });
 }
 
-pub fn lazy(comptime Value: type, provider: fn() Parser(Value)) Parser(Value) {
-    const Local = struct {
+pub fn lazy(comptime Value: type, provider: fn() callconv(.Inline) Parser(Value)) Parser(Value) {
+    return MakeParser(Value, struct {
         fn parse(context: *Context) SystemError!Production(Value) {
-            return try provider()(context);
+            return try provider().parse(context);
         }
-    };
-
-    return Local.parse;
+    });
 }
 
 test {
@@ -348,7 +352,7 @@ test {
 
         const parser1 = token(.number_literal);
         _ = expect(types.Number, parser1);
-        _ = map(types.Number, u8, Local.testMapFn, parser1);
+        _ = mapValue(types.Number, u8, Local.testMapFn, parser1);
     }
 }
 

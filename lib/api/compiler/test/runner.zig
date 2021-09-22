@@ -7,7 +7,6 @@ const Error = error {
 };
 
 pub fn expectEqualAst(allocator: *std.mem.Allocator, expected: *const ast.Program, parse: *const Parse) !void {
-
     switch (parse.result) {
         .fail => |errors| {
             var buf: [256]u8 = undefined;
@@ -17,9 +16,9 @@ pub fn expectEqualAst(allocator: *std.mem.Allocator, expected: *const ast.Progra
             for (errors) |err| {
                 std.debug.print("  Syntax Error: {s}\n", .{ try err.format(&buf) });
             }
-            std.debug.print("\n============================================================\n", .{});
+            std.debug.print("============================================================\n\n", .{});
 
-            return Error.ParseError;
+            try std.testing.expectEqual(std.meta.TagType(@TypeOf(parse.result)).ok, parse.result);
         },
         .ok => |actual| {
             var expected_json_container = std.ArrayList(u8).init(allocator);

@@ -6,6 +6,8 @@ pub fn Visitor(comptime Context: type) type {
         visitIdentifier: ?fn(context: Context, node: *const ast.Identifier) void,
         visitExpression: ?fn(context: Context, node: *const ast.Expression) void,
         visitDefinition: ?fn(context: Context, node: *const ast.Definition) void,
+        visitStatement: ?fn(context: Context, node: *const ast.Statement) void,
+        visitFunction: ?fn(context: Context, node: *const ast.Function) void,
         visitProgram: ?fn(context: Context, node: *const ast.Program) void,
     };
 }
@@ -52,8 +54,31 @@ pub fn visit(comptime Context: type, ctx: Context, prg: *const ast.Program, vst:
             }
         }
 
+        fn visitStatement(context: Context, node: *const ast.Statement, visitor: *const Visitor(Context)) void {
+            switch (node.*) {
+                .definition => |definition| {
+                    visitDefinition(context, definition, visitor);
+                }
+            }
+
+            if(visitor.visitStatement) |function| {
+                function(context, node);
+            }
+        }
+
+        fn visitFunction(context: Context, node: *const ast.Function, visitor: *const Visitor(Context)) void {
+            visitIdentifier(context, node.identifier, visitor);
+            for (node.body) |statement| {
+                visitStatement(context, statement, visitor);
+            }
+
+            if(visitor.visitFunction) |function| {
+                function(context, node);
+            }
+        }
+
         fn visitProgram(context: Context, node: *const ast.Program, visitor: *const Visitor(Context)) void {
-            visitDefinition(context, node, visitor);
+            visitFunction(context, node, visitor);
             if (visitor.visitProgram) |function| {
                 function(context, node);
             }

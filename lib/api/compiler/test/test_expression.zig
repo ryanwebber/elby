@@ -4,114 +4,61 @@ const runner = @import("runner.zig");
 
 const Parser = @import("../parser.zig").Parser;
 
-test "parse number" {
+test "parse mixed expression" {
     const allocator = std.testing.allocator;
-    const source = "let x = 82";
-    var parse = try Parser.parse(allocator, source);
-    defer { parse.deinit(); }
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer { arena.deinit(); }
+
+    const source = "fn main() { let x = 5 - 3 * 2 / (1); let a; }";
+    var parse = try Parser.parse(&arena, source);
 
     try runner.expectEqualAst(allocator, &.{
         .identifier = &.{
-            .name = "x"
+            .name = "main",
         },
-        .expression = &.{
-            .number_literal = &.{
-                .value = 82
-            }
-        }
-    }, &parse);
-}
-
-test "parse identifier" {
-    const allocator = std.testing.allocator;
-    const source = "let x = y";
-    var parse = try Parser.parse(allocator, source);
-    defer { parse.deinit(); }
-
-    try runner.expectEqualAst(allocator, &.{
-        .identifier = &.{
-            .name = "x"
-        },
-        .expression = &.{
-            .identifier = &.{
-                .name = "y"
-            }
-        }
-    }, &parse);
-}
-
-test "parse left-associative term expression" {
-    const allocator = std.testing.allocator;
-    const source = "let x = 2 - 3 + 1";
-    var parse = try Parser.parse(allocator, source);
-    defer { parse.deinit(); }
-
-    try runner.expectEqualAst(allocator, &.{
-        .identifier = &.{
-            .name = "x"
-        },
-        .expression = &.{
-            .binary_expression = .{
-                .lhs = &.{
-                    .binary_expression = .{
-                        .lhs = &.{
-                            .number_literal = &.{
-                                .value = 2
-                            }
-                        },
-                        .op = ast.BinOp.op_minus,
-                        .rhs = &.{
-                            .number_literal = &.{
-                                .value = 3
+        .body = &.{
+            &.{
+                .definition = &.{
+                    .identifier = &.{
+                        .name = "x"
+                    },
+                    .expression = &.{
+                        .binary_expression = .{
+                            .lhs = &.{
+                                .number_literal = &.{
+                                    .value = 5
+                                }
+                            },
+                            .op = ast.BinOp.op_minus,
+                            .rhs = &.{
+                                .binary_expression = .{
+                                    .lhs = &.{
+                                        .binary_expression = .{
+                                            .lhs = &.{
+                                                .number_literal = &.{
+                                                    .value = 3
+                                                }
+                                            },
+                                            .op = ast.BinOp.op_mul,
+                                            .rhs = &.{
+                                                .number_literal = &.{
+                                                    .value = 2
+                                                }
+                                            }
+                                        }
+                                    },
+                                    .op = ast.BinOp.op_div,
+                                    .rhs = &.{
+                                        .number_literal = &.{
+                                            .value = 1
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-                },
-                .op = ast.BinOp.op_plus,
-                .rhs = &.{
-                    .number_literal = &.{
-                        .value = 1
                     }
                 }
             }
         }
-    }, &parse);
-}
-
-test "parse bracketed expr" {
-    const allocator = std.testing.allocator;
-    const source = "let x = y - (1 + 2)";
-    var parse = try Parser.parse(allocator, source);
-    defer { parse.deinit(); }
-
-    try runner.expectEqualAst(allocator, &.{
-        .identifier = &.{
-            .name = "x"
-        },
-        .expression = &.{
-            .binary_expression = .{
-                .lhs = &.{
-                    .identifier = &.{
-                        .name = "y"
-                    }
-                },
-                .op = ast.BinOp.op_minus,
-                .rhs = &.{
-                    .binary_expression = .{
-                        .lhs = &.{
-                            .number_literal = &.{
-                                .value = 1
-                            }
-                        },
-                        .op = ast.BinOp.op_plus,
-                        .rhs = &.{
-                            .number_literal = &.{
-                                .value = 2
-                            }
-                        }
-                    }
-                },
-            }
-        },
     }, &parse);
 }

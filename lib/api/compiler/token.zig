@@ -7,9 +7,7 @@ pub const Token = struct {
     line: usize,
     offset: usize,
 
-    // TODO: Remove and use @TagType in newer zig builds
     pub const Id = std.meta.TagType(Value);
-
     pub const Value = union(enum) {
         identifier: []const u8,
         assignment,
@@ -17,9 +15,14 @@ pub const Token = struct {
         plus,
         minus,
         star,
+        fslash,
+        semicolon,
         left_paren,
         right_paren,
+        left_brace,
+        right_brace,
         kwd_let,
+        kwd_fn,
         eof,
     };
 
@@ -28,7 +31,23 @@ pub const Token = struct {
         return std.meta.TagPayload(Value, id);
     }
 
-    pub fn description(self: *Token) []const u8 {
-        return self.range;
+    pub fn description(self: Token.Id) []const u8 {
+        return switch (self) {
+            .assignment => "=",
+            .number_literal => "number",
+            .plus => "+",
+            .minus => "-",
+            .star => "*",
+            .fslash => "/",
+            .semicolon => ";",
+            .left_paren => "(",
+            .right_paren => ")",
+            .left_brace => "{",
+            .right_brace => "}",
+            .kwd_let => "let",
+            .kwd_fn => "fn",
+            .eof => "<eof>",
+            else => @tagName(self)
+        };
     }
 };

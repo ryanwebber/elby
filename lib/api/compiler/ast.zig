@@ -1,9 +1,6 @@
 const std = @import("std");
 const types = @import("../types.zig");
 
-const builtin = std.builtin.TypeInfo;
-
-
 pub const BinOp = enum {
     op_plus,
     op_minus,
@@ -38,4 +35,13 @@ pub const Definition = struct {
     expression: *const Expression,
 };
 
-pub const Program = Definition;
+pub const Statement = union(enum) {
+    definition: *const Definition,
+};
+
+pub const Function = struct {
+    identifier: *const Identifier,
+    body: []const *const Statement,
+};
+
+pub const Program = Function;

@@ -26,6 +26,7 @@ pub const Scanner = struct {
     const Keyword = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
             .{ "let", .kwd_let },
+            .{ "fn", .kwd_fn },
         });
 
         pub fn asID(name: []const u8) ?Token.Value {
@@ -138,12 +139,28 @@ pub const Scanner = struct {
                             token.type = .star;
                             break;
                         },
+                        '/' => {
+                            token.type = .fslash;
+                            break;
+                        },
+                        ';' => {
+                            token.type = .semicolon;
+                            break;
+                        },
                         '(' => {
                             token.type = .left_paren;
                             break;
                         },
                         ')' => {
                             token.type = .right_paren;
+                            break;
+                        },
+                        '{' => {
+                            token.type = .left_brace;
+                            break;
+                        },
+                        '}' => {
+                            token.type = .right_brace;
                             break;
                         },
                         '0'...'9' => {

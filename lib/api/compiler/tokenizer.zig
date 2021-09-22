@@ -17,7 +17,7 @@ pub const Tokenizer = struct {
 
     const Self = @This();
 
-    pub fn tokenize(allocator: *std.mem.Allocator, source: []const u8) !Self {
+    pub fn tokenize(allocator: * std.mem.Allocator, source: []const u8) !Self {
         var scanner = try Scanner.initUtf8(allocator, source);
         var list = std.ArrayList(*Token).init(allocator);
         var err: ?SyntaxError = null;

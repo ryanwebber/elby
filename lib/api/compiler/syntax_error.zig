@@ -50,6 +50,18 @@ pub fn expectedSequence(description: []const u8, position: *Token) SyntaxError {
     };
 }
 
+pub fn unmatchedSet(description: []const u8, position: *Token) SyntaxError {
+    return .{
+        .line = position.line,
+        .offset = position.offset,
+        .type = .{
+            .unmatched_set = .{
+                .description = description,
+            },
+        },
+    };
+}
+
 pub const SyntaxError = struct {
     line: usize,
     offset: usize,
@@ -67,23 +79,33 @@ pub const SyntaxError = struct {
         },
         expected_sequence: struct {
             description: []const u8,
+        },
+        unmatched_set: struct {
+            description: []const u8,
         }
     },
+
+    fn column(self: *const SyntaxError) usize {
+        return self.offset;
+    }
 
     pub fn format(self: *const SyntaxError, buf: []u8) ![]const u8 {
         switch (self.type) {
             .invalid_number_format => |err| {
-                return std.fmt.bufPrint(buf, "[line {}] invalid number format: {s}", .{ self.line, err.range });
+                return std.fmt.bufPrint(buf, "[line {}:{}] invalid number format: '{s}'", .{ self.line, self.column(), err.range });
             },
             .unexpected_token => |err| {
-                return std.fmt.bufPrint(buf, "[line {}] expected: {any}, found: {s}", .{ self.line, err.expected, err.found });
+                return std.fmt.bufPrint(buf, "[line {}:{}] expected: '{s}', found: '{s}'", .{ self.line, self.column(),Token.description(err.expected), err.found });
             },
             .unexpected_eof => |err| {
-                return std.fmt.bufPrint(buf, "[line {}] unexpected end of source, expected: {any}", .{ self.line, err.expected });
+                return std.fmt.bufPrint(buf, "[line {}:{}] unexpected end of source, expected: '{s}'", .{ self.line, self.column(),Token.description(err.expected) });
             },
             .expected_sequence => |err| {
-                return std.fmt.bufPrint(buf, "[line {}] expected: {s}", .{ self.line, err.description });
+                return std.fmt.bufPrint(buf, "[line {}:{}] incomplete: {s}", .{ self.line, self.column(),err.description });
             },
+            .unmatched_set => |err| {
+                return std.fmt.bufPrint(buf, "[line {}:{}] expected: {s}", .{ self.line, self.column(),err.description });
+            }
         }
     }
 };
