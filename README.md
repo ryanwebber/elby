@@ -3,15 +3,17 @@
 A language and toolchain targeting the Apollo Guidance Computer.
 
 ## Features
+
  * Static type system
  * Static variable allocation
- * Virtual expression stack
+ * Type-based overflow semantics
  * Multi-bank support
  * Interpreter-supported types (ex. Vectors)
  * Standard library APIs for IO, DSKY, etc
- * Type-based overflow semantics
 
 ```
+@import("something.lb)
+
 // functions
 fn add(a: int15, b: int15) -> int15? {
 

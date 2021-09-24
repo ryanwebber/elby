@@ -393,7 +393,7 @@ test "scan: simple number" {
 
 test "scan: simple addition" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "x=35 z = x + 1");
+    var scanner = try Scanner.initUtf8(allocator, "x=35 z = x + 0x1");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdRange(.number_literal, "35", &scanner);
@@ -401,13 +401,13 @@ test "scan: simple addition" {
     try expectId(.assignment, &scanner);
     try expectIdentifier("x", &scanner);
     try expectId(.plus, &scanner);
-    try expectIdRange(.number_literal, "1", &scanner);
+    try expectIdRange(.number_literal, "0x1", &scanner);
     try expectId(.eof, &scanner);
 }
 
 test "scan: simple arithmetic" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "3*-z+2--1");
+    var scanner = try Scanner.initUtf8(allocator, "3*-z+2--0b1");
     try expectIdRange(.number_literal, "3", &scanner);
     try expectId(.star, &scanner);
     try expectId(.minus, &scanner);
@@ -416,7 +416,7 @@ test "scan: simple arithmetic" {
     try expectIdRange(.number_literal, "2", &scanner);
     try expectId(.minus, &scanner);
     try expectId(.minus, &scanner);
-    try expectIdRange(.number_literal, "1", &scanner);
+    try expectIdRange(.number_literal, "0b1", &scanner);
     try expectId(.eof, &scanner);
 }
 

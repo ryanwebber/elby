@@ -80,28 +80,28 @@ pub fn compileExpression(expr: *const ast.Expression, slotAllocator: *SlotAlloca
             const slot = slotAllocator.nextStackSlot();
             const instruction: Instruction = switch (node.op) {
                 .op_plus => .{
-                    .addi = .{
+                    .add = .{
                         .dest = slot,
                         .lhs = lhs,
                         .rhs = rhs
                     }
                 },
                 .op_minus => .{
-                    .subi = .{
+                    .sub = .{
                         .dest = slot,
                         .lhs = lhs,
                         .rhs = rhs
                     }
                 },
                 .op_mul => .{
-                    .muli = .{
+                    .mul = .{
                         .dest = slot,
                         .lhs = lhs,
                         .rhs = rhs
                     }
                 },
                 .op_div => .{
-                    .divi = .{
+                    .div = .{
                         .dest = slot,
                         .lhs = lhs,
                         .rhs = rhs

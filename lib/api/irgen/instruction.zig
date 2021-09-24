@@ -19,19 +19,18 @@ const BinOp = struct {
 pub const Instruction = union(enum) {
     load: struct { dest: slot.Slot, value: types.Numeric, },
     move: struct { src: slot.Slot, dest: slot.Slot },
-    addi: BinOp,
-    subi: BinOp,
-    muli: BinOp,
-    divi: BinOp,
+    add: BinOp,
+    sub: BinOp,
+    mul: BinOp,
+    div: BinOp,
 
     // return
     // call <fn>
     // if <slot> goto <label>
     // if <overflow> goto <label>
-    // float to int
-    // int to float
-    // ...bin-ops
-    // ...un-ops
+    // cast
+    // ...binary ops
+    // ...unary ops
 
     const Self = @This();
 
@@ -47,16 +46,16 @@ pub const Instruction = union(enum) {
                 try writer.print(" := ", .{});
                 try move.src.format(writer);
             },
-            .addi => |add| {
+            .add => |add| {
                 try add.format(writer, "+");
             },
-            .subi => |add| {
+            .sub => |add| {
                 try add.format(writer, "-");
             },
-            .muli => |add| {
+            .mul => |add| {
                 try add.format(writer, "*");
             },
-            .divi => |add| {
+            .div => |add| {
                 try add.format(writer, "/");
             },
         }
@@ -91,7 +90,7 @@ test "format add instruction" {
     var writer = std.io.fixedBufferStream(&buf);
 
     const instruction = Instruction {
-        .addi = .{
+        .add = .{
             .dest = .{
                 .local = .{
                     .index = 2
