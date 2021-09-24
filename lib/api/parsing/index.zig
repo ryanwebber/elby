@@ -4,5 +4,5 @@ test {
     _ = @import("tokenizer.zig");
     _ = @import("parser.zig");
 
-    _ = @import("test/index.zig");
+    _ = @import("tests/index.zig");
 }

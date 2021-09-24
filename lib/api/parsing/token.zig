@@ -11,7 +11,7 @@ pub const Token = struct {
     pub const Value = union(enum) {
         identifier: []const u8,
         assignment,
-        number_literal: types.Number,
+        number_literal: types.Numeric,
         plus,
         minus,
         star,

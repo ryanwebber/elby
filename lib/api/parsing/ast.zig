@@ -13,7 +13,7 @@ pub const BinOp = enum {
 };
 
 pub const NumberLiteral = struct {
-    value: types.Number,
+    value: types.Numeric,
 };
 
 pub const Identifier = struct {

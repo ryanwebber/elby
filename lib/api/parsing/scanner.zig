@@ -85,6 +85,8 @@ pub const Scanner = struct {
             capture_source,
             capture_identifier,
             capture_number,
+            capture_number_radix,
+            capture_number_digits,
         } = .capture_source;
 
         // The offset to where this capture started
@@ -163,10 +165,20 @@ pub const Scanner = struct {
                             token.type = .right_brace;
                             break;
                         },
-                        '0'...'9' => {
+                        '0' => {
+                            state = .capture_number_radix;
+                            token.type = .{
+                                .number_literal = .{
+                                    .int = 0
+                                }
+                            };
+                        },
+                        '1'...'9' => {
                             state = .capture_number;
                             token.type = .{
-                                .number_literal = 0
+                                .number_literal = .{
+                                    .int = 0
+                                }
                             };
                         },
                         'a'...'z', 'A'...'Z', '_' => {
@@ -194,7 +206,40 @@ pub const Scanner = struct {
                         }
                     }
                 },
+                .capture_number_radix => {
+                    switch (slice[0]) {
+                        'x', 'b', 'o', '.' => {
+                            // It's either a float or an int. Either way, no more decimals can be specified
+                            state = .capture_number_digits;
+                        },
+                        '0'...'9' => {
+                            // Ok, it's just some number, we don't know if it's an int or float still
+                            state = .capture_number;
+                        },
+                        else => {
+                            // End of the number. Backup and handle this next call
+                            self.backtrack(slice);
+                            break;
+                        }
+                    }
+                },
                 .capture_number => {
+                    switch (slice[0]) {
+                        '0'...'9' => {
+                            // Noop, capture and loop
+                        },
+                        '.' => {
+                            // Looks like a float. Only digits now
+                            state = .capture_number_digits;
+                        },
+                        else => {
+                            // End of the number. Backup and handle this next call
+                            self.backtrack(slice);
+                            break;
+                        }
+                    }
+                },
+                .capture_number_digits => {
                     switch (slice[0]) {
                         '0'...'9' => {
                             // Noop, capture and loop
@@ -205,7 +250,7 @@ pub const Scanner = struct {
                             break;
                         }
                     }
-                }
+                },
             }
         } else {
             // EOF while scanning token

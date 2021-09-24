@@ -1,23 +1,21 @@
 const std = @import("std");
 const ast = @import("ast.zig");
-const Tokenizer = @import("tokenizer.zig").Tokenizer;
+const TokenIterator = @import("tokenizer.zig").TokenIterator;
 const SyntaxError = @import("syntax_error.zig").SyntaxError;
 const Context = @import("combinators.zig").Context;
 const ErrorAccumulator = @import("combinators.zig").ErrorAccumulator;
+const Result = @import("../result.zig").Result;
 
 const grammarRoot = @import("grammar.zig").parser;
 
 pub const Parse = struct {
     allocator: *std.heap.ArenaAllocator,
-    result: Result,
+    result: ResultType,
 
     const Self = @This();
-    const Result = union(enum) {
-        ok: *ast.Program,
-        fail: []const SyntaxError
-    };
+    const ResultType = Result(*ast.Program, []const SyntaxError);
 
-    pub fn init(allocator: *std.heap.ArenaAllocator, result: Result) Self {
+    pub fn init(allocator: *std.heap.ArenaAllocator, result: ResultType) Self {
         return .{
             .allocator = allocator,
             .result = result,
@@ -26,23 +24,18 @@ pub const Parse = struct {
 };
 
 pub const Parser = struct {
-    pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) !Parse {
+    pub fn parse(arena: *std.heap.ArenaAllocator, iterator: *TokenIterator) !Parse {
         const allocator = &arena.allocator;
-        var tokenizer = try Tokenizer.tokenize(allocator, source);
-        var iterator = tokenizer.iterator();
+
         var err_accumulator = ErrorAccumulator.init(allocator);
-
         defer {
-            // Free all tokens, all we want is the ast
-            tokenizer.deinit();
-
             // Free error accumulator, we either return an owned slice or ignore any errors
             err_accumulator.deinit();
         }
 
         var context: Context = .{
             .allocator = allocator,
-            .iterator =  &iterator,
+            .iterator =  iterator,
             .errorHandler = &err_accumulator
         };
 

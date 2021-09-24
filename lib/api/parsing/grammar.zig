@@ -7,7 +7,7 @@ const Parser = combinators.Parser;
 const SystemError = @import("../error.zig").SystemError;
 
 const atLeast = combinators.atLeast;
-const eof = combinators.eof();
+const eof = combinators.eof;
 const expect = combinators.expect;
 const id = combinators.id;
 const first = combinators.first;
@@ -16,7 +16,6 @@ const map = combinators.map;
 const mapAlloc = combinators.mapAlloc;
 const mapValue = combinators.mapValue;
 const sequence = combinators.sequence;
-const toAstAlloc = combinators.toAstAlloc;
 const token = combinators.token;
 
 fn Rule(comptime Value: type, comptime RuleStruct: type) type {
@@ -31,9 +30,9 @@ fn Rule(comptime Value: type, comptime RuleStruct: type) type {
 }
 
 const Number = Rule(*ast.NumberLiteral, struct {
-    pub const parser = mapAlloc(types.Number, ast.NumberLiteral, mapNumber, token(.number_literal));
+    pub const parser = mapAlloc(types.Numeric, ast.NumberLiteral, mapNumber, token(.number_literal));
 
-    fn mapNumber(from: f64) ast.NumberLiteral {
+    fn mapNumber(from: types.Numeric) ast.NumberLiteral {
         return .{
             .value = from
         };
@@ -120,9 +119,6 @@ const Term = Rule(*ast.Expression, struct {
             expr_node = binexpr;
         }
 
-        // Free the list of OpTermPairs since we've constructed a tree from it
-        allocator.free(from.opRhs);
-
         return expr_node;
     }
 
@@ -170,9 +166,6 @@ const Expression = Rule(*ast.Expression, struct {
 
             expr_node = binexpr;
         }
-
-        // Free the list of OpTermPairs since we've constructed a tree from it
-        allocator.free(from.opRhs);
 
         return expr_node;
     }
@@ -251,7 +244,7 @@ const Function = Rule(*ast.Function, struct {
 const Program = Rule(*ast.Program, struct {
     pub const parser = mapValue(ProgramParse, *ast.Program, mapProgram, sequence(ProgramParse, "program", &.{
         .program = Function.parser,
-        .eof = eof,
+        .eof = eof(),
     }));
 
     const ProgramParse = struct {

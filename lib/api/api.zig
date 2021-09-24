@@ -5,5 +5,6 @@ pub fn hello() []const u8 {
 }
 
 test {
-    _ = @import("compiler/index.zig");
+    _ = @import("parsing/index.zig");
+    _ = @import("irgen/index.zig");
 }

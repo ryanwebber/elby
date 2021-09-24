@@ -89,22 +89,22 @@ pub const SyntaxError = struct {
         return self.offset;
     }
 
-    pub fn format(self: *const SyntaxError, buf: []u8) ![]const u8 {
+    pub fn format(self: *const SyntaxError, writer: anytype) !void {
         switch (self.type) {
             .invalid_number_format => |err| {
-                return std.fmt.bufPrint(buf, "[line {}:{}] invalid number format: '{s}'", .{ self.line, self.column(), err.range });
+                try writer.print("[line {}:{}] invalid number format: '{s}'", .{ self.line, self.column(), err.range });
             },
             .unexpected_token => |err| {
-                return std.fmt.bufPrint(buf, "[line {}:{}] expected: '{s}', found: '{s}'", .{ self.line, self.column(),Token.description(err.expected), err.found });
+                try writer.print("[line {}:{}] expected: '{s}', found: '{s}'", .{ self.line, self.column(),Token.description(err.expected), err.found });
             },
             .unexpected_eof => |err| {
-                return std.fmt.bufPrint(buf, "[line {}:{}] unexpected end of source, expected: '{s}'", .{ self.line, self.column(),Token.description(err.expected) });
+                try writer.print("[line {}:{}] unexpected end of source, expected: '{s}'", .{ self.line, self.column(),Token.description(err.expected) });
             },
             .expected_sequence => |err| {
-                return std.fmt.bufPrint(buf, "[line {}:{}] incomplete: {s}", .{ self.line, self.column(),err.description });
+                try writer.print("[line {}:{}] incomplete: {s}", .{ self.line, self.column(),err.description });
             },
             .unmatched_set => |err| {
-                return std.fmt.bufPrint(buf, "[line {}:{}] expected: {s}", .{ self.line, self.column(),err.description });
+                try writer.print("[line {}:{}] expected: {s}", .{ self.line, self.column(),err.description });
             }
         }
     }

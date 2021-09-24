@@ -1,20 +1,33 @@
 const std = @import("std");
 const ast = @import("../ast.zig");
 const Parse = @import("../parser.zig").Parse;
-
+const Parser = @import("../parser.zig").Parser;
+const Tokenizer = @import("../tokenizer.zig").Tokenizer;
 const Error = error {
     ParseError
 };
 
-pub fn expectEqualAst(allocator: *std.mem.Allocator, expected: *const ast.Program, parse: *const Parse) !void {
+pub fn expectAst(allocator: *std.mem.Allocator, source: []const u8, expected: *const ast.Program) !void {
+    var tokenizer = try Tokenizer.tokenize(allocator, source);
+    defer { tokenizer.deinit(); }
+
+    try std.testing.expect(tokenizer.err == null);
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer { arena.deinit(); }
+
+    var parse = try Parser.parse(&arena, &tokenizer.iterator());
+
     switch (parse.result) {
         .fail => |errors| {
             var buf: [256]u8 = undefined;
+            var writer = std.io.fixedBufferStream(&buf);
 
             std.debug.print("\n\n============================================================\n", .{});
             std.debug.print("Got parse failure with errors:\n", .{});
             for (errors) |err| {
-                std.debug.print("  Syntax Error: {s}\n", .{ try err.format(&buf) });
+                try err.format(writer.writer());
+                std.debug.print("  Syntax Error: {s}\n", .{ writer.getWritten() });
             }
             std.debug.print("============================================================\n\n", .{});
 

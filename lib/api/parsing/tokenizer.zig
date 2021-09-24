@@ -61,7 +61,7 @@ pub const Tokenizer = struct {
     fn evaluate(token: *Token) !?SyntaxError {
         switch (token.type) {
             .number_literal => |*value| {
-                value.* = types.parseNumber(token.range) catch {
+                value.* = types.Numeric.parse(token.range) catch {
                     return syntax_error.invalidNumberFormat(token);
                 };
             },
@@ -111,11 +111,11 @@ pub const TokenIterator = struct {
 
 test "tokenize: parse tokens success" {
     var allocator = std.testing.allocator;
-    var tokenizer = try Tokenizer.tokenize(allocator, "let i = 2 + 6512");
+    var tokenizer = try Tokenizer.tokenize(allocator, "let i = 0o2 + 6512.3");
     defer { tokenizer.deinit(); }
 
-    try std.testing.expectEqual(Token.Value { .number_literal = 2 }, tokenizer.tokens.items[3].type);
-    try std.testing.expectEqual(Token.Value { .number_literal = 6512 }, tokenizer.tokens.items[5].type);
+    try std.testing.expectEqual(Token.Value { .number_literal = .{ .int = 2, } }, tokenizer.tokens.items[3].type);
+    try std.testing.expectEqual(Token.Value { .number_literal = .{ .float = 6512.3, } }, tokenizer.tokens.items[5].type);
 
     try std.testing.expect(tokenizer.err == null);
     try std.testing.expectEqual(@intCast(usize, 7), tokenizer.tokens.items.len);
