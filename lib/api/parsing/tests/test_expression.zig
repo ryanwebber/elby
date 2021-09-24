@@ -12,7 +12,7 @@ test "parse mixed expression" {
         },
         .body = &.{
             &.{
-                .definition = &.{
+                .assignment = &.{
                     .identifier = &.{
                         .name = "x"
                     },

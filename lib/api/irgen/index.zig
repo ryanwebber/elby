@@ -1,4 +1,4 @@
 
 test {
-    _ = @import("compiler.zig");
+    _ = @import("tests/index.zig");
 }

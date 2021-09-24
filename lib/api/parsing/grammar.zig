@@ -176,9 +176,9 @@ const Expression = Rule(*ast.Expression, struct {
     };
 });
 
-const Definition = Rule(*ast.Definition, struct {
+const Definition = Rule(*ast.Assignment, struct {
     // definition ::= LET IDENTIFIER = expression
-    pub const parser = mapAlloc(DefinitionParse, ast.Definition, mapDefinition, sequence(DefinitionParse, "definition", &.{
+    pub const parser = mapAlloc(DefinitionParse, ast.Assignment, mapDefinition, sequence(DefinitionParse, "definition", &.{
         .let = token(.kwd_let),
         .identifier = Identifier.parser,
         .assignment = token(.assignment),
@@ -194,7 +194,7 @@ const Definition = Rule(*ast.Definition, struct {
         semicolon: void,
     };
 
-    fn mapDefinition(from: DefinitionParse) ast.Definition {
+    fn mapDefinition(from: DefinitionParse) ast.Assignment {
         return .{
             .identifier  = from.identifier,
             .expression = from.expression,
@@ -203,11 +203,11 @@ const Definition = Rule(*ast.Definition, struct {
 });
 
 const Statement = Rule(*ast.Statement, struct {
-    pub const parser = mapAlloc(*ast.Definition, ast.Statement, mapStatement, Definition.parser);
+    pub const parser = mapAlloc(*ast.Assignment, ast.Statement, mapStatement, Definition.parser);
 
-    fn mapStatement(from: *ast.Definition) ast.Statement {
+    fn mapStatement(from: *ast.Assignment) ast.Statement {
         return .{
-            .definition = from,
+            .assignment = from,
         };
     }
 });

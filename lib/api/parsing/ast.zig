@@ -30,13 +30,13 @@ pub const Expression = union(enum) {
     },
 };
 
-pub const Definition = struct {
+pub const Assignment = struct {
     identifier: *const Identifier,
     expression: *const Expression,
 };
 
 pub const Statement = union(enum) {
-    definition: *const Definition,
+    assignment: *const Assignment,
 };
 
 pub const Function = struct {

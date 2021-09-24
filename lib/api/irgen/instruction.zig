@@ -17,22 +17,48 @@ const BinOp = struct {
 };
 
 pub const Instruction = union(enum) {
-    load_immediate: struct { dest: slot.Slot, value: types.Numeric, },
+    load: struct { dest: slot.Slot, value: types.Numeric, },
+    move: struct { src: slot.Slot, dest: slot.Slot },
     addi: BinOp,
-    addf: BinOp,
+    subi: BinOp,
+    muli: BinOp,
+    divi: BinOp,
+
+    // return
+    // call <fn>
+    // if <slot> goto <label>
+    // if <overflow> goto <label>
+    // float to int
+    // int to float
+    // ...bin-ops
+    // ...un-ops
 
     const Self = @This();
 
     pub fn format(self: *const Instruction, writer: anytype) !void {
         switch (self.*) {
-            .load_immediate => |load| {
+            .load => |load| {
                 try load.dest.format(writer);
                 try writer.print(" := ", .{});
                 try load.value.format(writer);
             },
-            .addi, .addf => |add| {
+            .move => |move| {
+                try move.dest.format(writer);
+                try writer.print(" := ", .{});
+                try move.src.format(writer);
+            },
+            .addi => |add| {
                 try add.format(writer, "+");
-            }
+            },
+            .subi => |add| {
+                try add.format(writer, "-");
+            },
+            .muli => |add| {
+                try add.format(writer, "*");
+            },
+            .divi => |add| {
+                try add.format(writer, "/");
+            },
         }
     }
 };
@@ -43,7 +69,7 @@ test "format load instruction" {
     var writer = std.io.fixedBufferStream(&buf);
 
     const instruction = Instruction {
-        .load_immediate = .{
+        .load = .{
             .dest = .{
                 .local = .{
                     .index = 5

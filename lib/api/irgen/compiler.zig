@@ -22,14 +22,48 @@ pub const SlotAllocator = struct {
             }
         };
     }
+
+    fn lookupLocalSlot(_: *SlotAllocator, identifier: *const ast.Identifier) Slot {
+        // TODO: bottom-up search scope-tree
+        return .{
+            .local = .{
+                .index = @intCast(u32, identifier.name[0])
+            }
+        };
+    }
 };
+
+pub fn compileFunction(function: *const ast.Function, slotAllocator: *SlotAllocator, dest: *std.ArrayList(Instruction)) SystemError!void {
+    for (function.body) |statement| {
+        try compileStatement(statement, slotAllocator, dest);
+    }
+}
+
+pub fn compileStatement(statement: *const ast.Statement, slotAllocator: *SlotAllocator, dest: *std.ArrayList(Instruction)) SystemError!void {
+    switch (statement.*) {
+        .assignment => |assignment| {
+            return compileAssignment(assignment, slotAllocator, dest);
+        }
+    }
+}
+
+pub fn compileAssignment(assignment: *const ast.Assignment, slotAllocator: *SlotAllocator, dest: *std.ArrayList(Instruction)) SystemError!void {
+    const exprSlot = try compileExpression(assignment.expression, slotAllocator, dest);
+    const destSlot = slotAllocator.lookupLocalSlot(assignment.identifier);
+    try dest.append(.{
+        .move = .{
+            .src = exprSlot,
+            .dest = destSlot,
+        }
+    });
+}
 
 pub fn compileExpression(expr: *const ast.Expression, slotAllocator: *SlotAllocator, dest: *std.ArrayList(Instruction)) SystemError!Slot {
     switch (expr.*) {
         .number_literal => |node| {
             const slot = slotAllocator.nextStackSlot();
             try dest.append(.{
-                .load_immediate = .{
+                .load = .{
                     .dest = slot,
                     .value = node.value
                 }
@@ -37,76 +71,47 @@ pub fn compileExpression(expr: *const ast.Expression, slotAllocator: *SlotAlloca
 
             return slot;
         },
-        .identifier => |_| {
-            // TODO: lookup variable
-            return slotAllocator.nextStackSlot();
+        .identifier => |identifier| {
+            return slotAllocator.lookupLocalSlot(identifier);
         },
         .binary_expression => |node| {
-            const slot = slotAllocator.nextStackSlot();
             const lhs = try compileExpression(node.lhs, slotAllocator, dest);
             const rhs = try compileExpression(node.rhs, slotAllocator, dest);
-            switch (node.op) {
-                .op_plus => {
-                    try dest.append(.{
-                        .addi = .{
-                            .dest = slot,
-                            .lhs = lhs,
-                            .rhs = rhs
-                        }
-                    });
+            const slot = slotAllocator.nextStackSlot();
+            const instruction: Instruction = switch (node.op) {
+                .op_plus => .{
+                    .addi = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
                 },
-                else => {
-                    // TODO
-                }
-            }
+                .op_minus => .{
+                    .subi = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
+                .op_mul => .{
+                    .muli = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
+                .op_div => .{
+                    .divi = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
+            };
+
+            try dest.append(instruction);
 
             return slot;
         }
     }
-}
-
-test "compile expression" {
-    const expr: ast.Expression = .{
-        .binary_expression = .{
-            .lhs = &.{
-                .number_literal = &.{
-                    .value = .{
-                        .int = 1
-                    }
-                }
-            },
-            .op = ast.BinOp.op_plus,
-            .rhs = &.{
-                .number_literal = &.{
-                    .value = .{
-                        .int = 0
-                    }
-                }
-            }
-        }
-    };
-
-    var slotAllocator = SlotAllocator.init();
-    var destList = std.ArrayList(Instruction).init(std.testing.allocator);
-    defer { destList.deinit(); }
-
-    _ = try compileExpression(&expr, &slotAllocator, &destList);
-
-    var irString = std.ArrayList(u8).init(std.testing.allocator);
-    var stream = irString.writer();
-    defer { irString.deinit(); }
-
-    for (destList.items) |*instr| {
-        try instr.format(&stream);
-        try stream.print("\n", .{});
-    }
-
-    const expectedSource =
-        \\S1 := int(1)
-        \\S2 := int(0)
-        \\S0 := S1 + S2
-        \\
-        ;
-
-    try std.testing.expectEqualStrings(expectedSource, irString.items);
 }
