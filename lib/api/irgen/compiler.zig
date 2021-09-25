@@ -23,8 +23,8 @@ pub const SlotAllocator = struct {
         };
     }
 
-    fn lookupLocalSlot(_: *SlotAllocator, identifier: *const ast.Identifier) Slot {
-        // TODO: bottom-up search scope-tree
+    fn lookupNamedSlot(_: *SlotAllocator, identifier: *const ast.Identifier) Slot {
+        // TODO: pull out the right slot for the identifier
         return .{
             .local = .{
                 .index = @intCast(u32, identifier.name[0])
@@ -49,11 +49,17 @@ pub fn compileStatement(statement: *const ast.Statement, slotAllocator: *SlotAll
 
 pub fn compileAssignment(assignment: *const ast.Assignment, slotAllocator: *SlotAllocator, dest: *std.ArrayList(Instruction)) SystemError!void {
     const exprSlot = try compileExpression(assignment.expression, slotAllocator, dest);
-    const destSlot = slotAllocator.lookupLocalSlot(assignment.identifier);
+    const destSlot = slotAllocator.lookupNamedSlot(assignment.identifier);
     try dest.append(.{
         .move = .{
-            .src = exprSlot,
-            .dest = destSlot,
+            .src = .{
+                .slot = exprSlot,
+                .offset = 0
+            },
+            .dest = .{
+                .slot = destSlot,
+                .offset = 0
+            },
         }
     });
 }
@@ -72,7 +78,7 @@ pub fn compileExpression(expr: *const ast.Expression, slotAllocator: *SlotAlloca
             return slot;
         },
         .identifier => |identifier| {
-            return slotAllocator.lookupLocalSlot(identifier);
+            return slotAllocator.lookupNamedSlot(identifier);
         },
         .binary_expression => |node| {
             const lhs = try compileExpression(node.lhs, slotAllocator, dest);

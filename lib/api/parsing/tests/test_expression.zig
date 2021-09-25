@@ -1,12 +1,12 @@
 const std = @import("std");
 const ast = @import("../ast.zig");
-const runner = @import("runner.zig");
+const utils = @import("../../testing/utils.zig");
 
 const Parser = @import("../parser.zig").Parser;
 
 test "parse mixed expression" {
     const source = "fn main() { let x = 5 - 3 * 2.15 / (0x1 + 0); }";
-    try runner.expectAst(std.testing.allocator, source, &.{
+    try utils.expectAst(std.testing.allocator, source, &.{
         .identifier = &.{
             .name = "main",
         },

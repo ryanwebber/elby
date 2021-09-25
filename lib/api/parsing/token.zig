@@ -24,6 +24,10 @@ pub const Token = struct {
         kwd_let,
         kwd_fn,
         eof,
+
+        pub fn description(self: *const Value) []const u8 {
+            return Token.description(self.*);
+        }
     };
 
     // TODO: Is there a better way to do this?

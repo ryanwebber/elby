@@ -23,7 +23,7 @@ pub const Scanner = struct {
         unimplemented, // TODO: Remove this
     };
 
-    const Keyword = struct {
+    pub const Keyword = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
             .{ "let", .kwd_let },
             .{ "fn", .kwd_fn },

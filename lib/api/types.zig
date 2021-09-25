@@ -1,4 +1,5 @@
 const std = @import("std");
+const Keyword = @import("parsing/scanner.zig").Scanner.Keyword;
 
 pub const FloatType = f32;
 pub const IntType = i32;
@@ -41,7 +42,7 @@ pub const Numeric = union(enum) {
     }
 };
 
-pub const ArchType = struct {
+pub const Type = struct {
     name: []const u8,
     value: Value,
 
@@ -60,7 +61,7 @@ pub const ArchType = struct {
         object: struct {
             members: []const struct {
                 name: []const u8,
-                type: *const ArchType
+                type: *const Type
             },
 
             const ObjSelf = @This();
@@ -89,18 +90,22 @@ pub const ArchType = struct {
     }
 };
 
-pub const ArchTypeRegistry = struct {
-    types: []const ArchType,
+pub const TypeRegistry = struct {
+    types: []const Type,
 
     const Self = @This();
 
-    pub fn init(comptime types: []const ArchType) Self {
+    pub fn init(comptime types: []const Type) Self {
         comptime {
             inline for (types) |*t1| {
                 inline for (types) |*t2| {
                     if (t1 != t2 and std.mem.eql(u8, t1.name, t2.name)) {
-                        @compileLog("Duplicatly named type: ", t1.name);
+                        @compileLog("Duplicatly named Type: ", t1.name);
                     }
+                }
+
+                if (Keyword.asID(t1.name)) |tok| {
+                    @compileLog("Type conflicts with keyword token: ", tok.description());
                 }
             }
         }
@@ -110,7 +115,7 @@ pub const ArchTypeRegistry = struct {
         };
     }
 
-    pub fn getType(self: *const Self, name: []const u8) ?*const ArchType {
+    pub fn getType(self: *const Self, name: []const u8) ?*const Type {
         for (self.types) |*t| {
             if (std.mem.eql(u8, name, t.name)) {
                 return t;
@@ -121,14 +126,26 @@ pub const ArchTypeRegistry = struct {
     }
 };
 
+pub const Types = .{
+    .void = &Type {
+        .name = "void",
+        .value = .{
+            .enumerable = .{
+                .size = 0,
+                .values = &.{ "void" }
+            }
+        }
+    }
+};
+
 test {
-    const types = &[_]ArchType {
+    const types = &[_]Type {
         .{
             .name = "a1",
             .value = .{
                 .numeric = .{
                     .type = Numeric.Type.int,
-                    .size = 12
+                    .size = 1
                 }
             }
         },
@@ -137,13 +154,14 @@ test {
             .value = .{
                 .numeric = .{
                     .type = Numeric.Type.int,
-                    .size = 11
+                    .size = 2
                 }
             }
         },
     };
 
-    _ = ArchTypeRegistry.init(types);
+    _ = TypeRegistry.init(types);
     try std.testing.expect(types[0].equals(&types[0]));
-    try std.testing.expectEqual(@intCast(usize, 11), types[1].size());
+    try std.testing.expectEqual(@intCast(usize, 2), types[1].size());
+    try std.testing.expect(Types.void.equals(Types.void));
 }

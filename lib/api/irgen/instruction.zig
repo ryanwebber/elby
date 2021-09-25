@@ -16,9 +16,26 @@ const BinOp = struct {
     }
 };
 
+const MoveOp = struct {
+    src: OffsetAssignment,
+    dest: OffsetAssignment,
+
+    const OffsetAssignment = struct {
+        slot: slot.Slot,
+        offset: usize,
+    };
+
+    pub fn format(self: *const MoveOp, writer: anytype) !void {
+        try self.dest.slot.format(writer);
+        try writer.print("[{}] := ", .{ self.dest.offset });
+        try self.src.slot.format(writer);
+        try writer.print("[{}]", .{ self.src.offset });
+    }
+};
+
 pub const Instruction = union(enum) {
     load: struct { dest: slot.Slot, value: types.Numeric, },
-    move: struct { src: slot.Slot, dest: slot.Slot },
+    move: MoveOp,
     add: BinOp,
     sub: BinOp,
     mul: BinOp,
@@ -42,9 +59,7 @@ pub const Instruction = union(enum) {
                 try load.value.format(writer);
             },
             .move => |move| {
-                try move.dest.format(writer);
-                try writer.print(" := ", .{});
-                try move.src.format(writer);
+                try move.format(writer);
             },
             .add => |add| {
                 try add.format(writer, "+");

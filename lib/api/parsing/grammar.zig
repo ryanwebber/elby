@@ -29,7 +29,7 @@ fn Rule(comptime Value: type, comptime RuleStruct: type) type {
     };
 }
 
-const Number = Rule(*ast.NumberLiteral, struct {
+pub const Number = Rule(*ast.NumberLiteral, struct {
     pub const parser = mapAlloc(types.Numeric, ast.NumberLiteral, mapNumber, token(.number_literal));
 
     fn mapNumber(from: types.Numeric) ast.NumberLiteral {
@@ -39,7 +39,7 @@ const Number = Rule(*ast.NumberLiteral, struct {
     }
 });
 
-const Identifier = Rule(*ast.Identifier, struct {
+pub const Identifier = Rule(*ast.Identifier, struct {
     pub const parser = mapAlloc([]const u8, ast.Identifier, mapIdentifier, token(.identifier));
 
     fn mapIdentifier(from: []const u8) ast.Identifier {
@@ -49,7 +49,7 @@ const Identifier = Rule(*ast.Identifier, struct {
     }
 });
 
-const Factor = Rule(*ast.Expression, struct {
+pub const Factor = Rule(*ast.Expression, struct {
     // factor  ::= NUM | IDENTIFIER | (expr)
     pub const parser = first(*ast.Expression, "factor", &.{
         mapAlloc(*ast.NumberLiteral, ast.Expression, mapNumber, Number.parser),
@@ -84,7 +84,7 @@ const Factor = Rule(*ast.Expression, struct {
     };
 });
 
-const Term = Rule(*ast.Expression, struct {
+pub const Term = Rule(*ast.Expression, struct {
     // term ::= factor { ( * | / ) factor } *
     const parser = map(LhsOpRhs, *ast.Expression, mapReduceLhsOpRhs, sequence(LhsOpRhs, "multaplicative expression", &.{
         .lhs = Factor.parser,
@@ -128,7 +128,7 @@ const Term = Rule(*ast.Expression, struct {
     };
 });
 
-const Expression = Rule(*ast.Expression, struct {
+pub const Expression = Rule(*ast.Expression, struct {
     // expression ::= term { ( + | - ) term } *
     const parser = map(LhsOpRhs, *ast.Expression, mapReduceLhsOpRhs, sequence(LhsOpRhs, "addative expression", &.{
         .lhs = Term.parser,
@@ -176,7 +176,7 @@ const Expression = Rule(*ast.Expression, struct {
     };
 });
 
-const Definition = Rule(*ast.Assignment, struct {
+pub const Definition = Rule(*ast.Assignment, struct {
     // definition ::= LET IDENTIFIER = expression
     pub const parser = mapAlloc(DefinitionParse, ast.Assignment, mapDefinition, sequence(DefinitionParse, "definition", &.{
         .let = token(.kwd_let),
@@ -202,7 +202,7 @@ const Definition = Rule(*ast.Assignment, struct {
     }
 });
 
-const Statement = Rule(*ast.Statement, struct {
+pub const Statement = Rule(*ast.Statement, struct {
     pub const parser = mapAlloc(*ast.Assignment, ast.Statement, mapStatement, Definition.parser);
 
     fn mapStatement(from: *ast.Assignment) ast.Statement {
@@ -212,7 +212,7 @@ const Statement = Rule(*ast.Statement, struct {
     }
 });
 
-const Function = Rule(*ast.Function, struct {
+pub const Function = Rule(*ast.Function, struct {
     pub const parser = mapAlloc(FunctionParse, ast.Function, mapFunction, sequence(FunctionParse, "function", &.{
         .kwdfn = token(.kwd_fn),
         .name = Identifier.parser,
@@ -241,7 +241,7 @@ const Function = Rule(*ast.Function, struct {
     }
 });
 
-const Program = Rule(*ast.Program, struct {
+pub const Program = Rule(*ast.Program, struct {
     pub const parser = mapValue(ProgramParse, *ast.Program, mapProgram, sequence(ProgramParse, "program", &.{
         .program = Function.parser,
         .eof = eof(),
