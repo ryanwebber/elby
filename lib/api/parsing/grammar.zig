@@ -176,11 +176,23 @@ pub const Expression = Rule(*ast.Expression, struct {
     };
 });
 
+pub const TypeAssociation = Rule(*ast.TypeAssociation, struct {
+    pub const parser = mapAlloc(*ast.Identifier, ast.TypeAssociation, mapTypeAssociation, Identifier.parser);
+
+    fn mapTypeAssociation(from: *ast.Identifier) ast.TypeAssociation {
+        return .{
+            .identifier  = from,
+        };
+    }
+});
+
 pub const Definition = Rule(*ast.Assignment, struct {
-    // definition ::= LET IDENTIFIER = expression
+    // definition ::= LET IDENTIFIER : TYPE = expression
     pub const parser = mapAlloc(DefinitionParse, ast.Assignment, mapDefinition, sequence(DefinitionParse, "definition", &.{
         .let = token(.kwd_let),
         .identifier = Identifier.parser,
+        .colon = token(.colon),
+        .type = TypeAssociation.parser,
         .assignment = token(.assignment),
         .expression = Expression.parser,
         .semicolon = token(.semicolon),
@@ -189,6 +201,8 @@ pub const Definition = Rule(*ast.Assignment, struct {
     const DefinitionParse = struct {
         let: void,
         identifier: *ast.Identifier,
+        colon: void,
+        type: *ast.TypeAssociation,
         assignment: void,
         expression: *ast.Expression,
         semicolon: void,
@@ -197,6 +211,7 @@ pub const Definition = Rule(*ast.Assignment, struct {
     fn mapDefinition(from: DefinitionParse) ast.Assignment {
         return .{
             .identifier  = from.identifier,
+            .type = from.type,
             .expression = from.expression,
         };
     }
@@ -242,18 +257,20 @@ pub const Function = Rule(*ast.Function, struct {
 });
 
 pub const Program = Rule(*ast.Program, struct {
-    pub const parser = mapValue(ProgramParse, *ast.Program, mapProgram, sequence(ProgramParse, "program", &.{
-        .program = Function.parser,
+    pub const parser = mapAlloc(ProgramParse, ast.Program, mapProgram, sequence(ProgramParse, "program", &.{
+        .functions = atLeast(*ast.Function, 1, "functions", Function.parser),
         .eof = eof(),
     }));
 
     const ProgramParse = struct {
-        program: *ast.Program,
+        functions: []const *ast.Function,
         eof: void,
     };
 
-    fn mapProgram(from: ProgramParse) *ast.Function {
-        return from.program;
+    fn mapProgram(from: ProgramParse) ast.Program {
+        return .{
+            .functions = from.functions
+        };
     }
 });
 

@@ -115,6 +115,9 @@ pub const TypeRegistry = struct {
         };
     }
 
+    pub fn deinit(_: *const Self) void {
+    }
+
     pub fn getType(self: *const Self, name: []const u8) ?*const Type {
         for (self.types) |*t| {
             if (std.mem.eql(u8, name, t.name)) {
@@ -127,7 +130,7 @@ pub const TypeRegistry = struct {
 };
 
 pub const Types = .{
-    .void = &Type {
+    .void = Type {
         .name = "void",
         .value = .{
             .enumerable = .{
@@ -163,5 +166,5 @@ test {
     _ = TypeRegistry.init(types);
     try std.testing.expect(types[0].equals(&types[0]));
     try std.testing.expectEqual(@intCast(usize, 2), types[1].size());
-    try std.testing.expect(Types.void.equals(Types.void));
+    try std.testing.expect(Types.void.equals(&Types.void));
 }

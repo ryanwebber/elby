@@ -149,6 +149,10 @@ pub const Scanner = struct {
                             token.type = .semicolon;
                             break;
                         },
+                        ':' => {
+                            token.type = .colon;
+                            break;
+                        },
                         '(' => {
                             token.type = .left_paren;
                             break;

@@ -30,8 +30,13 @@ pub const Expression = union(enum) {
     },
 };
 
+pub const TypeAssociation = struct {
+    identifier: *const Identifier,
+};
+
 pub const Assignment = struct {
     identifier: *const Identifier,
+    type: *const TypeAssociation,
     expression: *const Expression,
 };
 
@@ -44,4 +49,6 @@ pub const Function = struct {
     body: []const *const Statement,
 };
 
-pub const Program = Function;
+pub const Program = struct {
+    functions: []const *const Function,
+};

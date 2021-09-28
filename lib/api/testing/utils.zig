@@ -1,14 +1,20 @@
 const std = @import("std");
 const ast = @import("../parsing/ast.zig");
+const types = @import("../types.zig");
 const grammar = @import("../parsing/grammar.zig");
 const compiler = @import("../irgen/compiler.zig");
 const Parser = @import("../parsing/combinators.zig").Parser;
 const ParseBuilder = @import("../parsing/parser.zig").ParseBuilder;
 const Tokenizer = @import("../parsing/tokenizer.zig").Tokenizer;
-const SlotAllocator = @import("../irgen/compiler.zig").SlotAllocator;
+const Context = @import("../irgen/compiler.zig").Context;
 const Instruction = @import("../irgen/instruction.zig").Instruction;
+const FunctionPrototype = @import("../irgen/function.zig").FunctionPrototype;
 const Error = error {
     ParseError
+};
+
+const testTypes: []const types.Type = &.{
+    types.Types.void,
 };
 
 pub fn toOwnedAst(comptime Value: type, comptime parser: Parser(Value), arena: *std.heap.ArenaAllocator, source: []const u8) !Value {
@@ -70,12 +76,19 @@ pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, expectedIR: [
     defer { arena.deinit(); }
 
     const function = try toOwnedAst(*ast.Function, grammar.Function.parser, &arena, source);
+    const prototype = try FunctionPrototype.init(allocator, function);
+    defer { prototype.deinit(); }
 
-    var slotAllocator = SlotAllocator.init();
+    const typeRegistry = types.TypeRegistry.init(testTypes);
+    defer { typeRegistry.deinit(); }
+
+    var context = try Context.init(allocator, &prototype, &typeRegistry);
+    defer { context.deinit(); }
+
     var destList = std.ArrayList(Instruction).init(allocator);
     defer { destList.deinit(); }
 
-    try compiler.compileFunction(function, &slotAllocator, &destList);
+    try compiler.compileFunction(function, &destList, &context);
 
     var actualIR = std.ArrayList(u8).init(std.testing.allocator);
     var stream = actualIR.writer();

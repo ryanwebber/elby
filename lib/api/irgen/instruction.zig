@@ -33,8 +33,19 @@ const MoveOp = struct {
     }
 };
 
+const LoadOp = struct {
+    dest: slot.Slot,
+    value: types.Numeric,
+
+    pub fn format(self: *const LoadOp, writer: anytype) !void {
+        try self.dest.format(writer);
+        try writer.print(" := ", .{});
+        try self.value.format(writer);
+    }
+};
+
 pub const Instruction = union(enum) {
-    load: struct { dest: slot.Slot, value: types.Numeric, },
+    load: LoadOp,
     move: MoveOp,
     add: BinOp,
     sub: BinOp,
@@ -54,9 +65,7 @@ pub const Instruction = union(enum) {
     pub fn format(self: *const Instruction, writer: anytype) !void {
         switch (self.*) {
             .load => |load| {
-                try load.dest.format(writer);
-                try writer.print(" := ", .{});
-                try load.value.format(writer);
+                try load.format(writer);
             },
             .move => |move| {
                 try move.format(writer);
@@ -91,7 +100,7 @@ test "format load instruction" {
             },
             .value = .{
                 .int = 2
-            }
+            },
         }
     };
 
@@ -112,7 +121,7 @@ test "format add instruction" {
                 }
             },
             .lhs = .{
-                .stack = .{
+                .temp = .{
                     .index = 3
                 }
             },
@@ -125,5 +134,5 @@ test "format add instruction" {
     };
 
     try instruction.format(writer.writer());
-    try std.testing.expectEqualStrings("L2 := S3 + P4", writer.getWritten());
+    try std.testing.expectEqualStrings("L2 := T3 + P4", writer.getWritten());
 }
