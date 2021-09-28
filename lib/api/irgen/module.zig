@@ -8,39 +8,44 @@ pub const Module = struct {
     const Self = @This();
 
     pub fn init(allocator: *std.mem.Allocator, functions: FunctionRegistry) !Self {
-        return .{
+        return Self {
             .allocator = allocator,
             .functions = functions,
         };
     }
 
-    pub fn deinit(_: *const Self) void {
+    pub fn deinit(self: *Self) void {
+        self.functions.deinit();
     }
 };
 
 pub const FunctionRegistry = struct {
     allocator: *std.mem.Allocator,
-    definitions: []const *FunctionDef,
+    definitions: []const *const FunctionDefinition,
     mapping: std.StringHashMap(*const FunctionDefinition),
 
     const Self = @This();
 
-    pub fn initOwned(allocator: *std.mem.Allocator, definitions: []const *const FunctionDefinition) !Self {
+    pub fn initManaged(allocator: *std.mem.Allocator, definitions: []const *const FunctionDefinition) !Self {
 
         var mapping = std.StringHashMap(*const FunctionDefinition).init(allocator);
+        errdefer { mapping.deinit(); }
+
         for (definitions) |def| {
-            mapping.put(def.prototype.identifier, def);
+            try mapping.put(def.prototype.identifier, def);
         }
 
-        return .{
+        return Self {
             .allocator = allocator,
             .definitions = definitions,
+            .mapping = mapping,
         };
     }
 
-    pub fn deinit(self: *const Self) void {
+    pub fn deinit(self: *Self) void {
         self.mapping.deinit();
         for (self.definitions) |definition| {
+            definition.deinit();
             self.allocator.destroy(definition);
         }
 

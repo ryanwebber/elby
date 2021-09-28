@@ -2,18 +2,19 @@ const std = @import("std");
 const ast = @import("../parsing/ast.zig");
 const func = @import("function.zig");
 const types = @import("../types.zig");
+const errors = @import("../error.zig");
 const Slot = @import("slot.zig").Slot;
 const Module = @import("module.zig").Module;
 const FunctionRegistry = @import("module.zig").FunctionRegistry;
 const Instruction = @import("instruction.zig").Instruction;
-const SystemError = @import("../error.zig").SystemError;
 
 const FunctionDefinition = func.FunctionDefinition;
 const FunctionPrototype = func.FunctionPrototype;
-const FunctionBody =func.FunctionBody;
+const FunctionBody = func.FunctionBody;
 const FunctionLayout = func.FunctionLayout;
 const NamedSlot = func.NamedSlot;
 const TypeRegistry = types.TypeRegistry;
+const SystemError = errors.SystemError;
 
 pub const Context = struct {
     slotAllocator: SlotAllocator,
@@ -31,51 +32,44 @@ pub const Context = struct {
     pub fn deinit(self: *Self) void {
         self.slotAllocator.deinit();
     }
-
-    pub fn computeLayout(_: *const Context) FunctionLayout {
-        return FunctionLayout {
-            .locals = &.{},
-            .params = &.{},
-            .workspace = .{
-                .size = 0,
-                .mapping = &.{},
-            }
-        };
-    }
 };
 
 pub const SlotAllocator = struct {
     allocator: *std.mem.Allocator,
     prototype: *const FunctionPrototype,
-    namedSlots: std.StringHashMap(NamedSlot),
+    paramSlots: std.StringArrayHashMap(NamedSlot),
+    localSlots: std.StringArrayHashMap(NamedSlot),
     tempSlots: std.ArrayList(*const types.Type),
 
     const Self = @This();
 
     pub fn init(allocator: *std.mem.Allocator, prototype: *const FunctionPrototype) !Self {
 
-        var namedSlots = std.StringHashMap(NamedSlot).init(allocator);
-        errdefer { namedSlots.deinit(); }
+        var paramSlots = std.StringArrayHashMap(NamedSlot).init(allocator);
+        errdefer { paramSlots.deinit(); }
 
         for (prototype.parameters) |parameter| {
-            try namedSlots.put(parameter.name, .{
+            try paramSlots.put(parameter.name, .{
                 .name = parameter.name,
                 .type = parameter.type,
             });
         }
 
+        var localSlots = std.StringArrayHashMap(NamedSlot).init(allocator);
         var tempSlots = std.ArrayList(*const types.Type).init(allocator);
 
         return Self {
             .allocator = allocator,
             .prototype = prototype,
-            .namedSlots = namedSlots,
+            .paramSlots = paramSlots,
+            .localSlots = localSlots,
             .tempSlots = tempSlots,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.namedSlots.deinit();
+        self.paramSlots.deinit();
+        self.localSlots.deinit();
         self.tempSlots.deinit();
     }
 
@@ -89,26 +83,49 @@ pub const SlotAllocator = struct {
         };
     }
 
-    pub fn allocateLocalSlot(_: *Self, name: []const u8, _: *const types.Type) !Slot {
-        // TODO: pull out the right slot for the identifier
+    pub fn allocateLocalSlot(self: *Self, name: []const u8, slotType: *const types.Type) !Slot {
+        const index = self.localSlots.count();
+        try self.localSlots.put(name, .{
+            .name = name,
+            .type = slotType,
+        });
+
         return Slot {
             .local = .{
-                .index = @intCast(u32, name[0])
+                .index = index
             }
         };
     }
 
-    pub fn lookupNamedSlot(_: *const Self, identifier: *const ast.Identifier) Slot {
-        return .{
-            .local = .{
-                .index = @intCast(u32, identifier.name[0])
-            }
-        };
+    pub fn lookupNamedSlot(self: *const Self, name: []const u8) !Slot {
+        if (self.paramSlots.getIndex(name)) |index| {
+            return Slot {
+                .param = .{
+                    .index = index
+                }
+            };
+        }
+
+        if (self.localSlots.getIndex(name)) |index| {
+            return Slot {
+                .local = .{
+                    .index = index
+                }
+            };
+        }
+
+        return errors.fatal("Unknown named slot: {s}", .{ name });
     }
 };
 
-pub fn compileModule(allocator: *std.mem.Allocator, program: *const ast.Program) !Module {
+pub fn compileModule(allocator: *std.mem.Allocator, program: *const ast.Program, typeRegistry: *const TypeRegistry) !Module {
     var functions = std.ArrayList(*const FunctionDefinition).init(allocator);
+    errdefer {
+        for (functions.items) |f| {
+            f.deinit();
+            allocator.destroy(f);
+        }
+    }
     defer { functions.deinit(); }
 
     var instructions = std.ArrayList(Instruction).init(allocator);
@@ -116,24 +133,34 @@ pub fn compileModule(allocator: *std.mem.Allocator, program: *const ast.Program)
 
     for (program.functions) |function| {
         const prototype = try FunctionPrototype.init(allocator, function);
-        const context = Context.init(allocator, prototype);
+        errdefer { prototype.deinit(); }
+
+        var context = try Context.init(allocator, &prototype, typeRegistry);
         defer { context.deinit(); }
 
-        try compileFunction(function, instructions, &context);
+        try compileFunction(function, &instructions, &context);
 
-        const body = FunctionBody.initManaged(allocator, instructions.toOwnedSlice());
-        const layout = slotAllocator.computeCurrentLayout();
+        const body = try FunctionBody.initManaged(allocator, instructions.toOwnedSlice());
+        errdefer { body.deinit(); }
 
-        var definition = allocator.create(FunctionDefinition);
-        definition.* = try FunctionDefinition.init(prototype, layout, body);
+        const layout = calculateLayout: {
+            const locals = context.slotAllocator.localSlots.values();
+            const params = context.slotAllocator.paramSlots.values();
+            const temps = context.slotAllocator.tempSlots.items;
+            break :calculateLayout try FunctionLayout.init(allocator, params, locals, temps);
+        };
+        errdefer { layout.deinit(); }
 
-        try functions.append(definition) catch |err| {
+        var definition = try allocator.create(FunctionDefinition);
+        definition.* = FunctionDefinition.init(prototype, layout, body);
+
+        functions.append(definition) catch |err| {
             allocator.destroy(definition);
             return err;
         };
     }
 
-    const registry = FunctionRegistry.initOwned(allocator, functions);
+    const registry = try FunctionRegistry.initManaged(allocator, functions.toOwnedSlice());
     return Module.init(allocator, registry);
 }
 
@@ -152,7 +179,11 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
 }
 
 fn compileAssignment(assignment: *const ast.Assignment, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
-    const targetType = &types.Types.void; // TODO
+    const typeName = assignment.type.identifier.name;
+    const targetType = context.typeRegistry.getType(typeName) orelse {
+        return errors.fatal("Unknown type: {s}", .{ typeName });
+    };
+
     const exprSlot = try compileExpression(assignment.expression, targetType, dest, context);
     const destSlot = try context.slotAllocator.allocateLocalSlot(assignment.identifier.name, &types.Types.void);
     try dest.append(.{
@@ -183,7 +214,7 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
             return slot;
         },
         .identifier => |identifier| {
-            return context.slotAllocator.lookupNamedSlot(identifier);
+            return try context.slotAllocator.lookupNamedSlot(identifier.name);
         },
         .binary_expression => |node| {
             const lhs = try compileExpression(node.lhs, targetType, dest, context);
@@ -225,4 +256,33 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
             return slot;
         }
     }
+}
+
+test {
+    const utils = @import("../testing/utils.zig");
+    const source =
+        \\fn main() {
+        \\    let x: i = 9;
+        \\}
+        ;
+
+    const typeRegistry = TypeRegistry.init(&.{
+        .{
+            .name = "i",
+            .value = .{
+                .numeric = .{
+                    .type = .int,
+                    .size = 1
+                }
+            }
+        },
+    });
+
+    var allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer { arena.deinit(); }
+    const program = try utils.toProgramAst(&arena, source);
+
+    var module = try compileModule(allocator, program, &typeRegistry);
+    defer { module.deinit(); }
 }

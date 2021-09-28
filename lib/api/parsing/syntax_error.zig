@@ -67,6 +67,9 @@ pub const SyntaxError = struct {
     offset: usize,
 
     type: union(enum) {
+        invalid_token: struct {
+            range: []const u8,
+        },
         invalid_number_format: struct {
             range: []const u8,
         },
@@ -91,6 +94,9 @@ pub const SyntaxError = struct {
 
     pub fn format(self: *const SyntaxError, writer: anytype) !void {
         switch (self.type) {
+            .invalid_token => |err| {
+                try writer.print("[line {}:{}] invalid token: '{s}'", .{ self.line, self.column(), err.range });
+            },
             .invalid_number_format => |err| {
                 try writer.print("[line {}:{}] invalid number format: '{s}'", .{ self.line, self.column(), err.range });
             },

@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const SlotIndex = struct {
-    index: u32,
+    index: usize,
 };
 
 pub const Slot = union(enum) {

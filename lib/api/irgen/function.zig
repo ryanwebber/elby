@@ -22,6 +22,7 @@ pub const FunctionDefinition = struct {
 
     pub fn deinit(self: *const Self) void {
         self.body.deinit();
+        self.layout.deinit();
         self.prototype.deinit();
     }
 };
@@ -63,12 +64,36 @@ pub const FunctionPrototype = struct {
 };
 
 pub const FunctionLayout = struct {
-    locals: []const NamedSlot,
+    allocator: *std.mem.Allocator,
     params: []const NamedSlot,
+    locals: []const NamedSlot,
     workspace: struct {
         size: usize,
         mapping: []const TempSlot,
     },
+
+    const Self = @This();
+
+    pub fn init(allocator: *std.mem.Allocator,
+                params: []const NamedSlot,
+                locals: []const NamedSlot,
+                _: []const *const types.Type) !Self {
+
+        return Self {
+            .allocator = allocator,
+            .params = try allocator.dupe(NamedSlot, params),
+            .locals = try allocator.dupe(NamedSlot, locals),
+            .workspace = .{
+                .size = 0,
+                .mapping = &.{},
+            }
+        };
+    }
+
+    pub fn deinit(self: *const Self) void {
+        self.allocator.free(self.params);
+        self.allocator.free(self.locals);
+    }
 };
 
 pub const FunctionBody = struct {
@@ -78,14 +103,14 @@ pub const FunctionBody = struct {
     const Self = @This();
 
     pub fn initManaged(allocator: *std.mem.Allocator, body: []const Instruction) !Self {
-        return .{
+        return Self {
             .allocator = allocator,
             .body = body,
         };
     }
 
     pub fn deinit(self: *const Self) void {
-        self.allocator.destroy(self.body);
+        self.allocator.free(self.body);
     }
 };
 

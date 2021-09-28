@@ -31,7 +31,6 @@ pub const Token = struct {
         }
     };
 
-    // TODO: Is there a better way to do this?
     pub fn valueType(comptime id: Id) type {
         return std.meta.TagPayload(Value, id);
     }

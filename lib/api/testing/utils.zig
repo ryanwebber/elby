@@ -15,7 +15,20 @@ const Error = error {
 
 const testTypes: []const types.Type = &.{
     types.Types.void,
+    .{
+        .name = "i",
+        .value = .{
+            .numeric = .{
+                .type = .float,
+                .size = 1,
+            }
+        }
+    },
 };
+
+pub fn toProgramAst(arena: *std.heap.ArenaAllocator, source: []const u8) !*ast.Program {
+    return toOwnedAst(*ast.Program, grammar.parser, arena, source);
+}
 
 pub fn toOwnedAst(comptime Value: type, comptime parser: Parser(Value), arena: *std.heap.ArenaAllocator, source: []const u8) !Value {
     var tokenizer = try Tokenizer.tokenize(&arena.allocator, source);

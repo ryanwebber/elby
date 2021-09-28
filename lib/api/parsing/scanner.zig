@@ -18,11 +18,6 @@ pub const Scanner = struct {
 
     const Self = @This();
 
-    const ScannerError = error {
-        invalid_state,
-        unimplemented, // TODO: Remove this
-    };
-
     pub const Keyword = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
             .{ "let", .kwd_let },
@@ -193,8 +188,17 @@ pub const Scanner = struct {
                             };
                         },
                         else => {
-                            std.debug.print("[Lex] Got unimplemented source token: {s}\n", .{slice});
-                            return ScannerError.unimplemented;
+                            return Result(*Token, SyntaxError) {
+                                .fail = SyntaxError {
+                                    .line = self.current_line,
+                                    .offset = tok_start,
+                                    .type = .{
+                                        .invalid_token = .{
+                                            .range = slice,
+                                        }
+                                    }
+                                }
+                            };
                         },
                     }
                 },
