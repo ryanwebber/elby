@@ -143,6 +143,7 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                 try writer.print("{s}", .{ namedSlot.name });
             },
             .temp => |s| {
+                // Can't use the mapping here because the types can't mismatch
                 try writer.print("__temp_{d}", .{ s.index });
             },
             .retval => {

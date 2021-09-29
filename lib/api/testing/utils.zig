@@ -9,6 +9,7 @@ const Tokenizer = @import("../parsing/tokenizer.zig").Tokenizer;
 const Context = @import("../irgen/compiler.zig").Context;
 const Instruction = @import("../irgen/instruction.zig").Instruction;
 const FunctionPrototype = @import("../irgen/function.zig").FunctionPrototype;
+const SyntaxError = @import("../parsing/syntax_error.zig").SyntaxError;
 const Error = error {
     ParseError
 };
@@ -30,28 +31,37 @@ pub fn toProgramAst(arena: *std.heap.ArenaAllocator, source: []const u8) !*ast.P
     return toOwnedAst(*ast.Program, grammar.parser, arena, source);
 }
 
+pub fn reportSyntaxErrors(errors: []const SyntaxError) anyerror {
+
+    var buf: [256]u8 = undefined;
+    var writer = std.io.fixedBufferStream(&buf);
+
+    std.debug.print("\n\n============================================================\n", .{});
+    std.debug.print("Got parse failure with errors:\n", .{});
+
+    for (errors) |err| {
+        try err.format(writer.writer());
+        std.debug.print("  Syntax Error: {s}\n", .{ writer.getWritten() });
+        writer.reset();
+    }
+
+    std.debug.print("============================================================\n\n", .{});
+    try std.testing.expect(false);
+    unreachable;
+}
+
 pub fn toOwnedAst(comptime Value: type, comptime parser: Parser(Value), arena: *std.heap.ArenaAllocator, source: []const u8) !Value {
     var tokenizer = try Tokenizer.tokenize(&arena.allocator, source);
 
-    try std.testing.expect(tokenizer.err == null);
+    if (tokenizer.err) |err| {
+        return reportSyntaxErrors(&.{ err });
+    }
 
     var parse = try ParseBuilder(Value, parser).parse(arena, &tokenizer.iterator());
 
     switch (parse.result) {
         .fail => |errors| {
-            var buf: [256]u8 = undefined;
-            var writer = std.io.fixedBufferStream(&buf);
-
-            std.debug.print("\n\n============================================================\n", .{});
-            std.debug.print("Got parse failure with errors:\n", .{});
-            for (errors) |err| {
-                try err.format(writer.writer());
-                std.debug.print("  Syntax Error: {s}\n", .{ writer.getWritten() });
-            }
-            std.debug.print("============================================================\n\n", .{});
-
-            try std.testing.expectEqual(std.meta.TagType(@TypeOf(parse.result)).ok, parse.result);
-            unreachable;
+            return reportSyntaxErrors(errors);
         },
         .ok => |actual| {
             return actual;

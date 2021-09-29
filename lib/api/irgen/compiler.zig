@@ -174,6 +174,9 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
     switch (statement.*) {
         .assignment => |assignment| {
             return compileAssignment(assignment, dest, context);
+        },
+        .call => |_| {
+            unreachable; // TODO: function call IR
         }
     }
 }

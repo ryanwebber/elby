@@ -12,9 +12,11 @@ const expect = combinators.expect;
 const id = combinators.id;
 const first = combinators.first;
 const lazy = combinators.lazy;
+const list = combinators.list;
 const map = combinators.map;
 const mapAlloc = combinators.mapAlloc;
 const mapValue = combinators.mapValue;
+const orElse = combinators.orElse;
 const sequence = combinators.sequence;
 const token = combinators.token;
 
@@ -217,12 +219,78 @@ pub const Definition = Rule(*ast.Assignment, struct {
     }
 });
 
-pub const Statement = Rule(*ast.Statement, struct {
-    pub const parser = mapAlloc(*ast.Assignment, ast.Statement, mapStatement, Definition.parser);
+pub const Argument = Rule(*ast.Argument, struct {
+    pub const parser = mapAlloc(ArgumentParse, ast.Argument, mapArgument, sequence(ArgumentParse, "argument", &.{
+        .identifier = Identifier.parser,
+        .colon = token(.colon),
+        .expression = Expression.parser,
+    }));
 
-    fn mapStatement(from: *ast.Assignment) ast.Statement {
+    const ArgumentParse = struct {
+        identifier: *ast.Identifier,
+        colon: void,
+        expression: *ast.Expression,
+    };
+
+    fn mapArgument(from: ArgumentParse) ast.Argument {
+        return .{
+            .identifier = from.identifier,
+            .expression = from.expression,
+        };
+    }
+});
+
+pub const ArgumentList = Rule(*ast.ArgumentList, struct {
+    pub const parser = mapAlloc([]const *ast.Argument, ast.ArgumentList, mapArgumentList, zeroOrMoreArguments);
+    const zeroOrMoreArguments = list(*ast.Argument, "arguments", Argument.parser, token(.comma));
+
+    fn mapArgumentList(from: []const *ast.Argument) ast.ArgumentList {
+        return .{
+            .arguments = from,
+        };
+    }
+});
+
+pub const FunctionCall = Rule(*ast.FunctionCall, struct {
+    pub const parser = mapAlloc(FunctionCallParse, ast.FunctionCall, mapFunctionCall, sequence(FunctionCallParse, "function call", &.{
+        .identifier = Identifier.parser,
+        .lparen = token(.left_paren),
+        .arglist = ArgumentList.parser,
+        .rparen = token(.right_paren),
+        .semicolon = token(.semicolon),
+    }));
+
+    const FunctionCallParse = struct {
+        identifier: *ast.Identifier,
+        lparen: void,
+        arglist: *ast.ArgumentList,
+        rparen: void,
+        semicolon: void,
+    };
+
+    fn mapFunctionCall(from: FunctionCallParse) ast.FunctionCall {
+        return .{
+            .identifier = from.identifier,
+            .arglist = from.arglist,
+        };
+    }
+});
+
+pub const Statement = Rule(*ast.Statement, struct {
+    pub const parser = first(*ast.Statement, "statement", &.{
+        mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Definition.parser),
+        mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCall.parser),
+    });
+
+    fn mapAssignment(from: *ast.Assignment) ast.Statement {
         return .{
             .assignment = from,
+        };
+    }
+
+    fn mapFunctionCall(from: *ast.FunctionCall) ast.Statement {
+        return .{
+            .call = from,
         };
     }
 });

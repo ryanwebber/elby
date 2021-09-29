@@ -30,6 +30,20 @@ pub const Expression = union(enum) {
     },
 };
 
+pub const Argument = struct {
+    identifier: *const Identifier,
+    expression: *const Expression,
+};
+
+pub const ArgumentList = struct {
+    arguments: []const *const Argument,
+};
+
+pub const FunctionCall = struct {
+    identifier: *const Identifier,
+    arglist: *const ArgumentList,
+};
+
 pub const TypeAssociation = struct {
     identifier: *const Identifier,
 };
@@ -42,6 +56,7 @@ pub const Assignment = struct {
 
 pub const Statement = union(enum) {
     assignment: *const Assignment,
+    call: *const FunctionCall,
 };
 
 pub const Function = struct {

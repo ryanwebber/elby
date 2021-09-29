@@ -101,16 +101,16 @@ pub const SyntaxError = struct {
                 try writer.print("[line {}:{}] invalid number format: '{s}'", .{ self.line, self.column(), err.range });
             },
             .unexpected_token => |err| {
-                try writer.print("[line {}:{}] expected: '{s}', found: '{s}'", .{ self.line, self.column(),Token.description(err.expected), err.found });
+                try writer.print("[line {}:{}] expected: '{s}', found: '{s}'", .{ self.line, self.column(), Token.description(err.expected), err.found });
             },
             .unexpected_eof => |err| {
-                try writer.print("[line {}:{}] unexpected end of source, expected: '{s}'", .{ self.line, self.column(),Token.description(err.expected) });
+                try writer.print("[line {}:{}] unexpected end of source, expected: '{s}'", .{ self.line, self.column(), Token.description(err.expected) });
             },
             .expected_sequence => |err| {
-                try writer.print("[line {}:{}] incomplete: {s}", .{ self.line, self.column(),err.description });
+                try writer.print("[line {}:{}] incomplete: {s}", .{ self.line, self.column(), err.description });
             },
             .unmatched_set => |err| {
-                try writer.print("[line {}:{}] expected: {s}", .{ self.line, self.column(),err.description });
+                try writer.print("[line {}:{}] expected: {s}", .{ self.line, self.column(), err.description });
             }
         }
     }

@@ -297,6 +297,45 @@ pub fn first(comptime Value: type, description: []const u8, parsers: []const Par
     });
 }
 
+pub fn list(comptime Value: type, description: []const u8, parser: Parser(Value), separator: Parser(void)) Parser([]const Value) {
+    const Local = struct {
+        const flatParser = map(JoinedParse, []const Value, joinList, sequence(JoinedParse, description, &.{
+            .head = parser,
+            .tail = tailParser,
+        }));
+
+        const JoinedParse = struct {
+            head: Value,
+            tail: []const TailParse,
+        };
+
+        const tailParser = atLeast(TailParse, 0, description, sequence(TailParse, description, &.{
+            .separator = separator,
+            .element = parser,
+        }));
+
+        const TailParse = struct {
+            separator: void,
+            element: Value,
+        };
+
+        fn joinList(allocator: *std.mem.Allocator, from: JoinedParse) SystemError![]const Value {
+
+            defer { allocator.free(from.tail); }
+
+            const values = try allocator.alloc(Value, 1 + from.tail.len);
+            values[0] = from.head;
+            for (from.tail) |tail, i| {
+                values[i + 1] = tail.element;
+            }
+
+            return values;
+        }
+    };
+
+    return orElse([]const Value, Local.flatParser, &.{});
+}
+
 pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8, parser: Parser(Value)) Parser([]const Value) {
     const AtLeastProduction = Production([]const Value);
     return Parser([]const Value).init(struct {
@@ -340,6 +379,28 @@ pub fn lazy(comptime Value: type, provider: fn() callconv(.Inline) Parser(Value)
     return Parser(Value).init(struct {
         fn parse(context: *Context) SystemError!Production(Value) {
             return try provider().parse(context);
+        }
+    });
+}
+
+pub fn orElse(comptime Value: type, parser: Parser(Value), elseVal: Value) Parser(Value) {
+    const MappedProduction = Production(Value);
+    return Parser(Value).init(struct {
+        fn parse(context: *Context) SystemError!MappedProduction {
+            const offset = context.iterator.offset;
+            switch (try parser.parse(context)) {
+                .value => |value| {
+                    return MappedProduction {
+                        .value = value
+                    };
+                },
+                .err => {
+                    context.iterator.offset = offset;
+                    return MappedProduction {
+                        .value = elseVal
+                    };
+                }
+            }
         }
     });
 }

@@ -148,6 +148,10 @@ pub const Scanner = struct {
                             token.type = .colon;
                             break;
                         },
+                        ',' => {
+                            token.type = .comma;
+                            break;
+                        },
                         '(' => {
                             token.type = .left_paren;
                             break;

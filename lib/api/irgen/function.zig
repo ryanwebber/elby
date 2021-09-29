@@ -98,7 +98,7 @@ pub const FunctionLayout = struct {
 
         for (temps) |tempType, i| {
             try tempMapping.append(.{
-                .offset = i, // TODO: Is this right
+                .offset = i, // TODO: Is this right?
                 .type = tempType
             });
         }
@@ -108,7 +108,7 @@ pub const FunctionLayout = struct {
             .params = try allocator.dupe(NamedSlot, params),
             .locals = try allocator.dupe(NamedSlot, locals),
             .workspace = .{
-                .size = temps.len, // TODO: Is this right
+                .size = temps.len, // TODO: Is this right?
                 .mapping = tempMapping.toOwnedSlice(),
             }
         };
@@ -117,6 +117,7 @@ pub const FunctionLayout = struct {
     pub fn deinit(self: *const Self) void {
         self.allocator.free(self.params);
         self.allocator.free(self.locals);
+        self.allocator.free(self.workspace.mapping);
     }
 };
 
