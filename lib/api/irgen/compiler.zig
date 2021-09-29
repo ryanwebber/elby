@@ -4,8 +4,8 @@ const func = @import("function.zig");
 const types = @import("../types.zig");
 const errors = @import("../error.zig");
 const Slot = @import("slot.zig").Slot;
-const Module = @import("module.zig").Module;
-const FunctionRegistry = @import("module.zig").FunctionRegistry;
+const Scheme = @import("scheme.zig").Scheme;
+const FunctionRegistry = @import("scheme.zig").FunctionRegistry;
 const Instruction = @import("instruction.zig").Instruction;
 
 const FunctionDefinition = func.FunctionDefinition;
@@ -118,7 +118,7 @@ pub const SlotAllocator = struct {
     }
 };
 
-pub fn compileModule(allocator: *std.mem.Allocator, program: *const ast.Program, typeRegistry: *const TypeRegistry) !Module {
+pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program, typeRegistry: *const TypeRegistry) !Scheme {
     var functions = std.ArrayList(*const FunctionDefinition).init(allocator);
     errdefer {
         for (functions.items) |f| {
@@ -161,7 +161,7 @@ pub fn compileModule(allocator: *std.mem.Allocator, program: *const ast.Program,
     }
 
     const registry = try FunctionRegistry.initManaged(allocator, functions.toOwnedSlice());
-    return Module.init(allocator, registry);
+    return Scheme.init(allocator, registry);
 }
 
 pub fn compileFunction(function: *const ast.Function, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
@@ -185,7 +185,7 @@ fn compileAssignment(assignment: *const ast.Assignment, dest: *std.ArrayList(Ins
     };
 
     const exprSlot = try compileExpression(assignment.expression, targetType, dest, context);
-    const destSlot = try context.slotAllocator.allocateLocalSlot(assignment.identifier.name, &types.Types.void);
+    const destSlot = try context.slotAllocator.allocateLocalSlot(assignment.identifier.name, targetType);
     try dest.append(.{
         .move = .{
             .src = .{
@@ -283,6 +283,6 @@ test {
     defer { arena.deinit(); }
     const program = try utils.toProgramAst(&arena, source);
 
-    var module = try compileModule(allocator, program, &typeRegistry);
-    defer { module.deinit(); }
+    var scheme = try compileScheme(allocator, program, &typeRegistry);
+    defer { scheme.deinit(); }
 }

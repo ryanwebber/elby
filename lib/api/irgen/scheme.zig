@@ -1,7 +1,7 @@
 const std = @import("std");
 const FunctionDefinition = @import("function.zig").FunctionDefinition;
 
-pub const Module = struct {
+pub const Scheme = struct {
     allocator: *std.mem.Allocator,
     functions: FunctionRegistry,
 

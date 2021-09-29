@@ -25,6 +25,15 @@ pub const FunctionDefinition = struct {
         self.layout.deinit();
         self.prototype.deinit();
     }
+
+    pub fn getSlotType(self: *const Self, slot: *const Slot) *const types.Type {
+        return switch (slot.*) {
+            .local => |s| self.layout.locals[s.index].type,
+            .param => |s| self.layout.params[s.index].type,
+            .temp => |s|  self.layout.workspace.mapping[s.index].type,
+            .retval => self.prototype.returnType,
+        };
+    }
 };
 
 pub const FunctionPrototype = struct {
@@ -33,6 +42,7 @@ pub const FunctionPrototype = struct {
     returnType: *const types.Type,
     identifier: []const u8,
     signature: []const u8,
+    name: []const u8,
 
     const Self = @This();
 
@@ -48,18 +58,22 @@ pub const FunctionPrototype = struct {
         defer { sigBuffer.deinit(); }
         try sigBuffer.writer().print("{s}() -> {s}", .{ node.identifier.name, returnType.name, });
 
+        const name = try allocator.dupe(u8, node.identifier.name);
+
         return Self {
             .allocator = allocator,
             .parameters = &.{},
             .returnType = returnType,
             .identifier = idBuffer.toOwnedSlice(),
             .signature = sigBuffer.toOwnedSlice(),
+            .name = name,
         };
     }
 
     pub fn deinit(self: *const FunctionPrototype) void {
         self.allocator.free(self.identifier);
         self.allocator.free(self.signature);
+        self.allocator.free(self.name);
     }
 };
 
@@ -77,15 +91,25 @@ pub const FunctionLayout = struct {
     pub fn init(allocator: *std.mem.Allocator,
                 params: []const NamedSlot,
                 locals: []const NamedSlot,
-                _: []const *const types.Type) !Self {
+                temps: []const *const types.Type) !Self {
+
+        var tempMapping = try std.ArrayList(TempSlot).initCapacity(allocator, temps.len);
+        defer { tempMapping.deinit(); }
+
+        for (temps) |tempType, i| {
+            try tempMapping.append(.{
+                .offset = i, // TODO: Is this right
+                .type = tempType
+            });
+        }
 
         return Self {
             .allocator = allocator,
             .params = try allocator.dupe(NamedSlot, params),
             .locals = try allocator.dupe(NamedSlot, locals),
             .workspace = .{
-                .size = 0,
-                .mapping = &.{},
+                .size = temps.len, // TODO: Is this right
+                .mapping = tempMapping.toOwnedSlice(),
             }
         };
     }
@@ -98,19 +122,19 @@ pub const FunctionLayout = struct {
 
 pub const FunctionBody = struct {
     allocator: *std.mem.Allocator,
-    body: []const Instruction,
+    instructions: []const Instruction,
 
     const Self = @This();
 
-    pub fn initManaged(allocator: *std.mem.Allocator, body: []const Instruction) !Self {
+    pub fn initManaged(allocator: *std.mem.Allocator, instructions: []const Instruction) !Self {
         return Self {
             .allocator = allocator,
-            .body = body,
+            .instructions = instructions,
         };
     }
 
     pub fn deinit(self: *const Self) void {
-        self.allocator.free(self.body);
+        self.allocator.free(self.instructions);
     }
 };
 
