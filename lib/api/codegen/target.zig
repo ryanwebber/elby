@@ -16,7 +16,7 @@ pub const FunctionRegistry = _scheme.FunctionRegistry;
 pub const Scheme = _scheme.Scheme;
 pub const fatal = @import("../error.zig").fatal;
 
-pub var temp: [1024]u8 = undefined;
+pub var temp: [4096]u8 = undefined;
 
 pub const Context = struct {
     stream: std.io.StreamSource,

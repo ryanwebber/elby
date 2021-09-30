@@ -50,21 +50,32 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
         try writer.print("#include <stdint.h>\n\n", .{});
 
         for (scheme.functions.definitions) |definition| {
+            try writeFunctionParameters(scheme, writer, definition);
             try writer.print("void ", .{});
             try writeMangledName(scheme, writer, &definition.prototype);
-            try writer.print("();\n", .{});
+            try writer.print("();\n\n", .{});
         }
+
 
         try writer.print("\n", .{});
 
         for (scheme.functions.definitions) |definition| {
-            try writer.print("// fn {s}\nvoid ", .{ definition.prototype.signature });
+            try writer.print("// fn {s}\n", .{ definition.prototype.signature });
+            try writer.print("void ", .{});
             try writeMangledName(scheme, writer, &definition.prototype);
             try writer.print("()\n{{\n", .{});
             try writeFunctionWorkspace(scheme, writer, &definition.layout);
             try writer.print("\n", .{});
             try writeFunctionBody(scheme, writer, definition);
             try writer.print("}}\n\n", .{});
+        }
+    }
+
+    fn writeFunctionParameters(scheme: *const Scheme, writer: anytype, definition: *const FunctionDefinition) !void {
+        for (definition.layout.params) |param, i| {
+            try writer.print("{s} ", .{ param.type.name });
+            try writeMangledName(scheme, writer, &definition.prototype);
+            try writer.print("__param__{d};\n", .{ i });
         }
     }
 
@@ -151,8 +162,8 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                 try writer.print("{s}", .{ namedSlot.name });
             },
             .param => |s| {
-                const namedSlot = layout.params[s.index];
-                try writer.print("{s}", .{ namedSlot.name });
+                try writeMangledName(scheme, writer, &definition.prototype);
+                try writer.print("__param__{d}", .{ s.index });
             },
             .temp => |s| {
                 // Can't use the mapping here because the types can't mismatch

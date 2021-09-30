@@ -59,9 +59,19 @@ test {
 
     const source =
         \\fn main() {
-        \\  let x: uint8_t = 5 - 3 * 2 / (0x1 + 0);
-        \\  let y: uint8_t = x * x;
-        \\  let z: uint8_t = 0;
+        \\    let x: uint8_t = 5 - 3 * 2 / (0x1 + 0);
+        \\    let y: uint8_t = x * x;
+        \\    let z: uint8_t = 0;
+        \\    foo(abc: 9, def: x + y);
+        \\}
+        \\
+        \\fn foo(abc: uint8_t, def: uint8_t) {
+        \\    let sum: uint8_t = abc + def;
+        \\    bar(a: sum + sum, b: def);
+        \\}
+        \\
+        \\fn bar(a: uint8_t, b: uint8_t) {
+        \\    let c: uint8_t = a * b;
         \\}
         ;
 
@@ -75,6 +85,13 @@ test {
 
     const Target = @import("codegen/targets/c99/target.zig").Target;
     const result = try compileSource(Target, &arena, &module);
+    switch (result) {
+        .syntaxError => |errs| {
+            return @import("testing/utils.zig").reportSyntaxErrors(errs);
+        },
+        else => {}
+    }
+
     try std.testing.expectEqual(PipelineResult.success, result);
 
     const expectedGeneration =
@@ -84,5 +101,5 @@ test {
     var writtenData = @import("codegen/target.zig").temp;
     _ = writtenData;
     _ = expectedGeneration;
-    // try std.testing.expectEqualStrings(expectedGeneration, &writtenData);
+    try std.testing.expectEqualStrings(expectedGeneration, &writtenData);
 }

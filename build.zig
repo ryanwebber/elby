@@ -11,7 +11,7 @@ pub fn build(b: *std.build.Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("elby-cli", "src/main.zig");
+    const exe = b.addExecutable("elbyc", "src/main.zig");
     exe.addPackage(.{
         .name = "elby",
         .path = .{
