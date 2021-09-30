@@ -44,6 +44,14 @@ const LoadOp = struct {
     }
 };
 
+const CallOp = struct {
+    functionId: []const u8,
+
+    pub fn format(self: *const CallOp, writer: anytype) !void {
+        try writer.print("call {s}", .{ self.functionId });
+    }
+};
+
 pub const Instruction = union(enum) {
     load: LoadOp,
     move: MoveOp,
@@ -51,9 +59,9 @@ pub const Instruction = union(enum) {
     sub: BinOp,
     mul: BinOp,
     div: BinOp,
+    call: CallOp,
 
     // return
-    // call <fn>
     // if <slot> goto <label>
     // if <overflow> goto <label>
     // cast
@@ -82,6 +90,9 @@ pub const Instruction = union(enum) {
             .div => |add| {
                 try add.format(writer, "/");
             },
+            .call => |call| {
+                try call.format(writer);
+            }
         }
     }
 };

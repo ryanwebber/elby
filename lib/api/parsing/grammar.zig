@@ -295,11 +295,44 @@ pub const Statement = Rule(*ast.Statement, struct {
     }
 });
 
+pub const Parameter = Rule(*ast.Parameter, struct {
+    pub const parser = mapAlloc(ParameterParse, ast.Parameter, mapParameter, sequence(ParameterParse, "parameter", &.{
+        .identifier = Identifier.parser,
+        .colon = token(.colon),
+        .type = Identifier.parser,
+    }));
+
+    const ParameterParse = struct {
+        identifier: *ast.Identifier,
+        colon: void,
+        type: *ast.Identifier,
+    };
+
+    fn mapParameter(from: ParameterParse) ast.Parameter {
+        return .{
+            .identifier = from.identifier,
+            .type = from.type,
+        };
+    }
+});
+
+pub const ParameterList = Rule(*ast.ParameterList, struct {
+    pub const parser = mapAlloc([]const *ast.Parameter, ast.ParameterList, mapParameterList, zeroOrMoreParameters);
+    const zeroOrMoreParameters = list(*ast.Parameter, "parameters", Parameter.parser, token(.comma));
+
+    fn mapParameterList(from: []const *ast.Parameter) ast.ParameterList {
+        return .{
+            .parameters = from,
+        };
+    }
+});
+
 pub const Function = Rule(*ast.Function, struct {
     pub const parser = mapAlloc(FunctionParse, ast.Function, mapFunction, sequence(FunctionParse, "function", &.{
         .kwdfn = token(.kwd_fn),
         .name = Identifier.parser,
         .lparen = token(.left_paren),
+        .parameters = ParameterList.parser,
         .rparen = token(.right_paren),
         .lbrace = token(.left_brace),
         .statements = atLeast(*ast.Statement, 0, "statements", Statement.parser),
@@ -310,6 +343,7 @@ pub const Function = Rule(*ast.Function, struct {
         kwdfn: void,
         name: *ast.Identifier,
         lparen: void,
+        parameters: *ast.ParameterList,
         rparen: void,
         lbrace: void,
         statements: []const *ast.Statement,
@@ -319,6 +353,7 @@ pub const Function = Rule(*ast.Function, struct {
     fn mapFunction(from: FunctionParse) ast.Function {
         return .{
             .identifier = from.name,
+            .paramlist = from.parameters,
             .body = from.statements,
         };
     }

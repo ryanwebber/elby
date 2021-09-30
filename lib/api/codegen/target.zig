@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("../types.zig");
 const functions = @import("../irgen/function.zig");
 const slots = @import("../irgen/slot.zig");
+const _scheme = @import("../irgen/scheme.zig");
 
 pub const Type = types.Type;
 pub const Numeric = types.Numeric;
@@ -10,7 +11,10 @@ pub const SlotIndex = slots.SlotIndex;
 pub const FunctionPrototype = functions.FunctionPrototype;
 pub const FunctionDefinition = functions.FunctionDefinition;
 pub const FunctionLayout = functions.FunctionLayout;
-pub const Scheme =  @import("../irgen/scheme.zig").Scheme;
+pub const PrototypeRegistry = functions.PrototypeRegistry;
+pub const FunctionRegistry = _scheme.FunctionRegistry;
+pub const Scheme = _scheme.Scheme;
+pub const fatal = @import("../error.zig").fatal;
 
 pub var temp: [1024]u8 = undefined;
 

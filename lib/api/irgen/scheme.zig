@@ -1,5 +1,6 @@
 const std = @import("std");
 const FunctionDefinition = @import("function.zig").FunctionDefinition;
+const PrototypeRegistry = @import("function.zig").PrototypeRegistry;
 
 pub const Scheme = struct {
     allocator: *std.mem.Allocator,
@@ -23,11 +24,11 @@ pub const FunctionRegistry = struct {
     allocator: *std.mem.Allocator,
     definitions: []const *const FunctionDefinition,
     mapping: std.StringHashMap(*const FunctionDefinition),
+    prototypeRegistry: PrototypeRegistry,
 
     const Self = @This();
 
-    pub fn initManaged(allocator: *std.mem.Allocator, definitions: []const *const FunctionDefinition) !Self {
-
+    pub fn initManaged(allocator: *std.mem.Allocator, definitions: []const *const FunctionDefinition, prototypes: PrototypeRegistry) !Self {
         var mapping = std.StringHashMap(*const FunctionDefinition).init(allocator);
         errdefer { mapping.deinit(); }
 
@@ -39,11 +40,14 @@ pub const FunctionRegistry = struct {
             .allocator = allocator,
             .definitions = definitions,
             .mapping = mapping,
+            .prototypeRegistry = prototypes,
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.mapping.deinit();
+        self.prototypeRegistry.deinit();
+
         for (self.definitions) |definition| {
             definition.deinit();
             self.allocator.destroy(definition);

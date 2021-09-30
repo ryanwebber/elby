@@ -12,6 +12,9 @@ test "parse mixed expression" {
                 .identifier = &.{
                     .name = "main",
                 },
+                .paramlist = &.{
+                    .parameters = &.{}
+                },
                 .body = &.{
                     &.{
                         .assignment = &.{

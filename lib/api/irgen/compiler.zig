@@ -13,18 +13,25 @@ const FunctionPrototype = func.FunctionPrototype;
 const FunctionBody = func.FunctionBody;
 const FunctionLayout = func.FunctionLayout;
 const NamedSlot = func.NamedSlot;
+const PrototypeRegistry = func.PrototypeRegistry;
 const TypeRegistry = types.TypeRegistry;
 const SystemError = errors.SystemError;
 
 pub const Context = struct {
     slotAllocator: SlotAllocator,
+    prototypeRegistry: *PrototypeRegistry,
     typeRegistry: *const TypeRegistry,
 
     const Self = @This();
 
-    pub fn init(allocator: *std.mem.Allocator, prototype: *const FunctionPrototype, typeRegistry: *const TypeRegistry) !Self {
+    pub fn init(allocator: *std.mem.Allocator,
+                prototype: *const FunctionPrototype,
+                prototypeRegistry: *PrototypeRegistry,
+                typeRegistry: *const TypeRegistry) !Self {
+
         return Self {
             .slotAllocator = try SlotAllocator.init(allocator, prototype),
+            .prototypeRegistry = prototypeRegistry,
             .typeRegistry = typeRegistry,
         };
     }
@@ -119,6 +126,12 @@ pub const SlotAllocator = struct {
 };
 
 pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program, typeRegistry: *const TypeRegistry) !Scheme {
+
+    var prototypeRegistry = PrototypeRegistry.init(allocator);
+    errdefer {
+        prototypeRegistry.deinit();
+    }
+
     var functions = std.ArrayList(*const FunctionDefinition).init(allocator);
     errdefer {
         for (functions.items) |f| {
@@ -132,10 +145,17 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
     defer { instructions.deinit(); }
 
     for (program.functions) |function| {
-        const prototype = try FunctionPrototype.init(allocator, function);
+        const prototype = try FunctionPrototype.init(allocator, function, typeRegistry);
         errdefer { prototype.deinit(); }
 
-        var context = try Context.init(allocator, &prototype, typeRegistry);
+        try prototypeRegistry.lookupTable.put(prototype.identifier, prototype);
+    }
+
+    for (program.functions) |function| {
+        const prototype = try FunctionPrototype.init(allocator, function, typeRegistry);
+        errdefer { prototype.deinit(); }
+
+        var context = try Context.init(allocator, &prototype, &prototypeRegistry, typeRegistry);
         defer { context.deinit(); }
 
         try compileFunction(function, &instructions, &context);
@@ -160,7 +180,7 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
         };
     }
 
-    const registry = try FunctionRegistry.initManaged(allocator, functions.toOwnedSlice());
+    const registry = try FunctionRegistry.initManaged(allocator, functions.toOwnedSlice(), prototypeRegistry);
     return Scheme.init(allocator, registry);
 }
 
@@ -173,12 +193,59 @@ pub fn compileFunction(function: *const ast.Function, dest: *std.ArrayList(Instr
 fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
     switch (statement.*) {
         .assignment => |assignment| {
-            return compileAssignment(assignment, dest, context);
+            try compileAssignment(assignment, dest, context);
         },
-        .call => |_| {
-            unreachable; // TODO: function call IR
+        .call => |call| {
+            _ = try compileFunctionCall(call, dest, context);
         }
     }
+}
+
+fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instruction), context: *Context) SystemError!?Slot {
+
+    const functionLookup = try context.prototypeRegistry.lookupCall(call);
+    defer { functionLookup.deinit(); }
+
+    const functionPrototype = switch(functionLookup.result) {
+        .found => |prototype| prototype,
+        .missing => |id| {
+            return errors.fatal("Function not found: {s}", .{ id });
+        },
+    };
+
+    for (call.arglist.arguments) |arg, i| {
+        const targetType = functionPrototype.parameters[i].type;
+        const argSourceSlot = try compileExpression(arg.expression, targetType, dest, context);
+        try dest.append(.{
+            .move = .{
+                .src = .{
+                    .offset = 0,
+                    .slot = argSourceSlot,
+                },
+                .dest = .{
+                    .offset = 0,
+                    .slot = .{
+                        .call = .{
+                            .functionId = functionPrototype.identifier,
+                            .slot = .{
+                                .param = .{
+                                    .index = i,
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        });
+    }
+
+    try dest.append(.{
+        .call = .{
+            .functionId = functionPrototype.identifier,
+        }
+    });
+
+    return null;
 }
 
 fn compileAssignment(assignment: *const ast.Assignment, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {

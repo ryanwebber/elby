@@ -9,9 +9,10 @@ const Tokenizer = @import("../parsing/tokenizer.zig").Tokenizer;
 const Context = @import("../irgen/compiler.zig").Context;
 const Instruction = @import("../irgen/instruction.zig").Instruction;
 const FunctionPrototype = @import("../irgen/function.zig").FunctionPrototype;
+const PrototypeRegistry = @import("../irgen/function.zig").PrototypeRegistry;
 const SyntaxError = @import("../parsing/syntax_error.zig").SyntaxError;
 const Error = error {
-    ParseError
+    ParseError, FunctionNotFound
 };
 
 const testTypes: []const types.Type = &.{
@@ -93,31 +94,29 @@ pub fn expectAst(allocator: *std.mem.Allocator, source: []const u8, expected: *c
     try std.testing.expectEqualStrings(expected_json_container.items, actual_json_container.items);
 }
 
-pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, expectedIR: []const u8) !void {
+pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: []const u8, expectedIR: []const u8) !void {
 
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer { arena.deinit(); }
 
-    const function = try toOwnedAst(*ast.Function, grammar.Function.parser, &arena, source);
-    const prototype = try FunctionPrototype.init(allocator, function);
-    defer { prototype.deinit(); }
+    const program = try toProgramAst(&arena, source);
+
 
     const typeRegistry = types.TypeRegistry.init(testTypes);
     defer { typeRegistry.deinit(); }
 
-    var context = try Context.init(allocator, &prototype, &typeRegistry);
-    defer { context.deinit(); }
+    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry);
+    defer { scheme.deinit(); }
 
-    var destList = std.ArrayList(Instruction).init(allocator);
-    defer { destList.deinit(); }
-
-    try compiler.compileFunction(function, &destList, &context);
+    const targetFunction = scheme.functions.mapping.get(functionID) orelse {
+        return Error.FunctionNotFound;
+    };
 
     var actualIR = std.ArrayList(u8).init(std.testing.allocator);
     var stream = actualIR.writer();
     defer { actualIR.deinit(); }
 
-    for (destList.items) |*instr| {
+    for (targetFunction.body.instructions) |*instr| {
         try instr.format(&stream);
         try stream.print("\n", .{});
     }

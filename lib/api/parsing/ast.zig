@@ -59,8 +59,18 @@ pub const Statement = union(enum) {
     call: *const FunctionCall,
 };
 
+pub const Parameter = struct {
+    identifier: *const Identifier,
+    type: *const Identifier,
+};
+
+pub const ParameterList = struct {
+    parameters: []const *const Parameter,
+};
+
 pub const Function = struct {
     identifier: *const Identifier,
+    paramlist: *const ParameterList,
     body: []const *const Statement,
 };
 

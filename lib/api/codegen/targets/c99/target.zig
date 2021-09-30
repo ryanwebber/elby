@@ -8,7 +8,10 @@ const Numeric = target.Numeric;
 const FunctionPrototype = target.FunctionPrototype;
 const FunctionDefinition = target.FunctionDefinition;
 const FunctionLayout = target.FunctionLayout;
+const FunctionRegistry = target.FunctionRegistry;
+const PrototypeRegistry = target.PrototypeRegistry;
 const Slot = target.Slot;
+const fatal = target.fatal;
 
 const cTypes: []const Type = &.{
     .{
@@ -22,7 +25,7 @@ const cTypes: []const Type = &.{
     },
 };
 
-const ErrorType = error {} || std.mem.Allocator.Error || std.io.StreamSource.WriteError;
+const ErrorType = anyerror;
 const UserContext = struct {
     context: *Context,
     const Self = @This();
@@ -48,7 +51,7 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
 
         for (scheme.functions.definitions) |definition| {
             try writer.print("void ", .{});
-            try writeMangledName(writer, &definition.prototype);
+            try writeMangledName(scheme, writer, &definition.prototype);
             try writer.print("();\n", .{});
         }
 
@@ -56,16 +59,16 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
 
         for (scheme.functions.definitions) |definition| {
             try writer.print("// fn {s}\nvoid ", .{ definition.prototype.signature });
-            try writeMangledName(writer, &definition.prototype);
+            try writeMangledName(scheme, writer, &definition.prototype);
             try writer.print("()\n{{\n", .{});
-            try writeFunctionWorkspace(writer, &definition.layout);
+            try writeFunctionWorkspace(scheme, writer, &definition.layout);
             try writer.print("\n", .{});
-            try writeFunctionBody(writer, definition);
+            try writeFunctionBody(scheme, writer, definition);
             try writer.print("}}\n\n", .{});
         }
     }
 
-    fn writeFunctionWorkspace(writer: anytype, layout: *const FunctionLayout) !void {
+    fn writeFunctionWorkspace(_: *const Scheme, writer: anytype, layout: *const FunctionLayout) !void {
         for (layout.locals) |*local| {
             try writer.print("\t{s} {s};\n", .{ local.type.name, local.name });
         }
@@ -77,60 +80,69 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
         }
     }
 
-    fn writeFunctionBody(writer: anytype, function: *const FunctionDefinition) !void {
+    fn writeFunctionBody(scheme: *const Scheme, writer: anytype, function: *const FunctionDefinition) !void {
         for (function.body.instructions) |instruction| {
             switch (instruction) {
                 .load => |load| {
-                    const destType = function.getSlotType(&load.dest);
+                    const destType = try function.getSlotType(&load.dest, &scheme.functions.prototypeRegistry);
                     try writer.print("\t", .{});
-                    try writeName(writer, &load.dest, function);
+                    try writeName(scheme, writer, &load.dest, function);
                     try writer.print(" = ({s})", .{ destType.name });
-                    try writeNumeric(writer, &load.value);
+                    try writeNumeric(scheme, writer, &load.value);
                     try writer.print(";\n", .{});
                 },
                 .move => |move| {
                     try writer.print("\t", .{});
-                    try writeName(writer, &move.dest.slot, function);
+                    try writeName(scheme, writer, &move.dest.slot, function);
                     try writer.print(" = ", .{});
-                    try writeName(writer, &move.src.slot, function);
+                    try writeName(scheme, writer, &move.src.slot, function);
                     try writer.print(";\n", .{});
                 },
                 .add => |add| {
-                    try writeBinOp(writer, &add.dest, &add.lhs, &add.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &add.dest, &add.lhs, &add.rhs, "+", function);
                 },
                 .sub => |sub| {
-                    try writeBinOp(writer, &sub.dest, &sub.lhs, &sub.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &sub.dest, &sub.lhs, &sub.rhs, "+", function);
                 },
                 .mul => |mul| {
-                    try writeBinOp(writer, &mul.dest, &mul.lhs, &mul.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &mul.dest, &mul.lhs, &mul.rhs, "+", function);
                 },
                 .div => |div| {
-                    try writeBinOp(writer, &div.dest, &div.lhs, &div.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &div.dest, &div.lhs, &div.rhs, "+", function);
                 },
+                .call => |call| {
+                    const callPrototype = scheme.functions.prototypeRegistry.lookupTable.getPtr(call.functionId) orelse {
+                        return fatal("Unknown function: {s}", .{ call.functionId });
+                    };
+
+                    try writer.print("\t", .{});
+                    try writeMangledName(scheme, writer, callPrototype);
+                    try writer.print("();\n", .{});
+                }
             }
         }
     }
 
-    fn writeBinOp(writer: anytype, dest: *const Slot, lhs: *const Slot, rhs: *const Slot, op: []const u8, function: *const FunctionDefinition) !void {
+    fn writeBinOp(scheme: *const Scheme, writer: anytype, dest: *const Slot, lhs: *const Slot, rhs: *const Slot, op: []const u8, function: *const FunctionDefinition) !void {
         try writer.print("\t", .{});
-        try writeName(writer, dest, function);
+        try writeName(scheme, writer, dest, function);
         try writer.print(" = ", .{});
-        try writeName(writer, lhs, function);
+        try writeName(scheme, writer, lhs, function);
         try writer.print(" {s} ", .{ op });
-        try writeName(writer, rhs, function);
+        try writeName(scheme, writer, rhs, function);
         try writer.print(";\n", .{});
     }
 
-    fn writeMangledName(writer: anytype, prototype: *const FunctionPrototype) !void {
+    fn writeMangledName(_: *const Scheme, writer: anytype, prototype: *const FunctionPrototype) !void {
         try writer.print("{s}", .{ prototype.name });
     }
 
-    fn writeType(writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {
+    fn writeType(_: *const Scheme, writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {
         const slotType = definition.getSlotType(slot);
         try writer.print("{s}", .{ slotType.name });
     }
 
-    fn writeName(writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {
+    fn writeName(scheme: *const Scheme, writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {
         const layout = definition.layout;
         const prototype = definition.prototype;
         switch (slot.*) {
@@ -148,12 +160,28 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
             },
             .retval => {
                 try writer.print("__ret_", .{});
-                try writeMangledName(writer, &prototype);
+                try writeMangledName(scheme, writer, &prototype);
+            },
+            .call => |call| {
+                const callPrototype = scheme.functions.prototypeRegistry.lookupTable.getPtr(call.functionId) orelse {
+                    return fatal("Unknown function: {s}", .{ call.functionId });
+                };
+
+                switch (call.slot) {
+                    .param => |param| {
+                        try writeMangledName(scheme, writer, callPrototype);
+                        try writer.print("__param__{d}", .{ param.index });
+                    },
+                    .retval => {
+                        try writeMangledName(scheme, writer, callPrototype);
+                        try writer.print("__retval", .{});
+                    }
+                }
             }
         }
     }
 
-    fn writeNumeric(writer: anytype, numeric: *const Numeric) !void {
+    fn writeNumeric(_: *const Scheme, writer: anytype, numeric: *const Numeric) !void {
         switch (numeric.*) {
             .float => |floatValue| {
                 try writer.print("{d}", .{floatValue});

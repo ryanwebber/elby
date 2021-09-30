@@ -27,5 +27,5 @@ test "assignment ir generation" {
         \\
         ;
 
-    try utils.expectIR(std.testing.allocator, source, expectedIR);
+    try utils.expectIR(std.testing.allocator, source, "main()", expectedIR);
 }
