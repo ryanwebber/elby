@@ -28,7 +28,7 @@ test "parse mixed expression" {
                                 },
                             },
                             .expression = &.{
-                                .binary_expression = .{
+                                .binary_expression = &.{
                                     .lhs = &.{
                                         .number_literal = &.{
                                             .value = .{
@@ -38,9 +38,9 @@ test "parse mixed expression" {
                                     },
                                     .op = ast.BinOp.op_minus,
                                     .rhs = &.{
-                                        .binary_expression = .{
+                                        .binary_expression = &.{
                                             .lhs = &.{
-                                                .binary_expression = .{
+                                                .binary_expression = &.{
                                                     .lhs = &.{
                                                         .number_literal = &.{
                                                             .value = .{
@@ -60,7 +60,7 @@ test "parse mixed expression" {
                                             },
                                             .op = ast.BinOp.op_div,
                                             .rhs = &.{
-                                                .binary_expression = .{
+                                                .binary_expression = &.{
                                                     .lhs = &.{
                                                         .number_literal = &.{
                                                             .value = .{

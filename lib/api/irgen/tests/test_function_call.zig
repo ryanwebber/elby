@@ -23,8 +23,8 @@ test "function call ir generation" {
         \\L1[0] := T1[0]
         \\T2 := int(3)
         \\T3 := L0 + T2
-        \\foo(abc:def:)/P0[0] := T3[0]
         \\T4 := L1 + P0
+        \\foo(abc:def:)/P0[0] := T3[0]
         \\foo(abc:def:)/P1[0] := T4[0]
         \\call foo(abc:def:)
         \\call bar()
@@ -66,4 +66,33 @@ test "function void return" {
         ;
 
     try utils.expectIR(std.testing.allocator, source, "test(a:b:)", expectedIR);
+}
+
+test "function param smashing" {
+
+    const source =
+        \\fn test() {
+        \\  foo(a: 1, b: foo(a: 2, b: 3));
+        \\}
+        \\
+        \\fn foo(a: i, b: i) -> i {
+        \\  return a + b;
+        \\}
+        ;
+
+    const expectedIR =
+        \\T0 := int(1)
+        \\T1 := int(2)
+        \\T2 := int(3)
+        \\foo(a:b:)/P0[0] := T1[0]
+        \\foo(a:b:)/P1[0] := T2[0]
+        \\call foo(a:b:)
+        \\T3[0] := foo(a:b:)/RET[0]
+        \\foo(a:b:)/P0[0] := T0[0]
+        \\foo(a:b:)/P1[0] := T3[0]
+        \\call foo(a:b:)
+        \\
+        ;
+
+    try utils.expectIR(std.testing.allocator, source, "test()", expectedIR);
 }

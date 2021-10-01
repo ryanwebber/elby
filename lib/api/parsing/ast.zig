@@ -20,14 +20,17 @@ pub const Identifier = struct {
     name: []const u8,
 };
 
+pub const BinaryExpression = struct {
+    lhs: *const Expression,
+    op: BinOp,
+    rhs: *const Expression
+};
+
 pub const Expression = union(enum) {
     number_literal: *const NumberLiteral,
     identifier: *const Identifier,
-    binary_expression: struct {
-        lhs: *const Expression,
-        op: BinOp,
-        rhs: *const Expression
-    },
+    binary_expression: *const BinaryExpression,
+    function_call: *const FunctionCall,
 };
 
 pub const Argument = struct {

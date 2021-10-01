@@ -18,6 +18,7 @@ const TypeRegistry = types.TypeRegistry;
 const SystemError = errors.SystemError;
 
 pub const Context = struct {
+    allocator: *std.mem.Allocator,
     slotAllocator: SlotAllocator,
     prototypeRegistry: *PrototypeRegistry,
     typeRegistry: *const TypeRegistry,
@@ -30,6 +31,7 @@ pub const Context = struct {
                 typeRegistry: *const TypeRegistry) !Self {
 
         return Self {
+            .allocator = allocator,
             .slotAllocator = try SlotAllocator.init(allocator, prototype),
             .prototypeRegistry = prototypeRegistry,
             .typeRegistry = typeRegistry,
@@ -38,6 +40,10 @@ pub const Context = struct {
 
     pub fn deinit(self: *Self) void {
         self.slotAllocator.deinit();
+    }
+
+    pub fn currentPrototype(self: *const Self) *const FunctionPrototype {
+        return self.slotAllocator.prototype;
     }
 };
 
@@ -125,6 +131,11 @@ pub const SlotAllocator = struct {
     }
 };
 
+const SlotTypePair = struct {
+    slot: Slot,
+    type: *const types.Type,
+};
+
 pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program, typeRegistry: *const TypeRegistry) !Scheme {
 
     var prototypeRegistry = PrototypeRegistry.init(allocator);
@@ -199,7 +210,7 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
             _ = try compileFunctionCall(call, dest, context);
         },
         .ret => |expr| {
-            const returnType = context.slotAllocator.prototype.returnType;
+            const returnType = context.currentPrototype().returnType;
             if ((returnType.size() > 0) != (expr != null)) {
                 return errors.fatal("Unexpected return type expression for type: {s}", .{ returnType.name });
             }
@@ -225,7 +236,7 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
     }
 }
 
-fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instruction), context: *Context) SystemError!?Slot {
+fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instruction), context: *Context) SystemError!?SlotTypePair {
 
     const functionLookup = try context.prototypeRegistry.lookupCall(call);
     defer { functionLookup.deinit(); }
@@ -237,14 +248,22 @@ fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instr
         },
     };
 
+    // Move expressions into temp slots first, and _then_ move them into param slots
+    // to avoid `foo(1, foo(2))` param smashing
+    var argSlots = try context.allocator.alloc(Slot, call.arglist.arguments.len);
+    defer { context.allocator.free(argSlots); }
+
     for (call.arglist.arguments) |arg, i| {
         const targetType = functionPrototype.parameters[i].type;
-        const argSourceSlot = try compileExpression(arg.expression, targetType, dest, context);
+        argSlots[i] = try compileExpression(arg.expression, targetType, dest, context);
+    }
+
+    for (call.arglist.arguments) |_, i| {
         try dest.append(.{
             .move = .{
                 .src = .{
                     .offset = 0,
-                    .slot = argSourceSlot,
+                    .slot = argSlots[i],
                 },
                 .dest = .{
                     .offset = 0,
@@ -269,7 +288,19 @@ fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instr
         }
     });
 
-    return null;
+    if (functionPrototype.returnType.size() > 0) {
+        return SlotTypePair {
+            .slot = .{
+                .call = .{
+                    .functionId = functionPrototype.identifier,
+                    .slot = .retval,
+                }
+            },
+            .type = functionPrototype.returnType,
+        };
+    } else {
+        return null;
+    }
 }
 
 fn compileAssignment(assignment: *const ast.Assignment, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
@@ -348,6 +379,27 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
             try dest.append(instruction);
 
             return slot;
+        },
+        .function_call => |call| {
+            if (try compileFunctionCall(call, dest, context)) |returnInfo| {
+                const destSlot = try context.slotAllocator.allocateTemporarySlot(returnInfo.type);
+                try dest.append(.{
+                    .move = .{
+                        .src = .{
+                            .slot = returnInfo.slot,
+                            .offset = 0
+                        },
+                        .dest = .{
+                            .slot = destSlot,
+                            .offset = 0
+                        },
+                    }
+                });
+
+                return destSlot;
+            } else {
+                return errors.fatal("Return type not usable as expression (call to {s})", .{ call.identifier.name });
+            }
         }
     }
 }

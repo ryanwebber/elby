@@ -56,6 +56,7 @@ pub const Factor = Rule(*ast.Expression, struct {
     // factor  ::= NUM | IDENTIFIER | (expr)
     pub const parser = first(*ast.Expression, "factor", &.{
         mapAlloc(*ast.NumberLiteral, ast.Expression, mapNumber, Number.parser),
+        mapAlloc(*ast.FunctionCall, ast.Expression, mapFunctionCall, FunctionCall.parser),
         mapAlloc(*ast.Identifier, ast.Expression, mapIdentifier, Identifier.parser),
         mapValue(BracketedExpr, *ast.Expression, mapBrackets, sequence(BracketedExpr, "( <expression> )", &.{
             .left_paren = token(.left_paren),
@@ -67,6 +68,12 @@ pub const Factor = Rule(*ast.Expression, struct {
     fn mapNumber(from: *ast.NumberLiteral) ast.Expression {
         return .{
             .number_literal = from,
+        };
+    }
+
+    fn mapFunctionCall(from: *ast.FunctionCall) ast.Expression {
+        return .{
+            .function_call = from,
         };
     }
 
@@ -108,18 +115,20 @@ pub const Term = Rule(*ast.Expression, struct {
     fn mapReduceLhsOpRhs(allocator: *std.mem.Allocator, from: LhsOpRhs) SystemError!*ast.Expression {
         var expr_node = from.lhs;
         for (from.opRhs) |pair| {
-            var binexpr = try allocator.create(ast.Expression);
-
-            // Left-associativity
+            var node = try allocator.create(ast.Expression);
+            var binexpr = try allocator.create(ast.BinaryExpression);
             binexpr.* = .{
-                .binary_expression = .{
-                    .lhs = expr_node,
-                    .op = pair.op,
-                    .rhs = pair.rhs
-                }
+                .lhs = expr_node,
+                .op = pair.op,
+                .rhs = pair.rhs
             };
 
-            expr_node = binexpr;
+            // Left-associativity
+            node.* = .{
+                .binary_expression = binexpr
+            };
+
+            expr_node = node;
         }
 
         return expr_node;
@@ -156,18 +165,20 @@ pub const Expression = Rule(*ast.Expression, struct {
     fn mapReduceLhsOpRhs(allocator: *std.mem.Allocator, from: LhsOpRhs) SystemError!*ast.Expression {
         var expr_node = from.lhs;
         for (from.opRhs) |pair| {
-            var binexpr = try allocator.create(ast.Expression);
-
-            // Left-associativity
+            var node = try allocator.create(ast.Expression);
+            var binexpr = try allocator.create(ast.BinaryExpression);
             binexpr.* = .{
-                .binary_expression = .{
-                    .lhs = expr_node,
-                    .op = pair.op,
-                    .rhs = pair.rhs
-                }
+                .lhs = expr_node,
+                .op = pair.op,
+                .rhs = pair.rhs
             };
 
-            expr_node = binexpr;
+            // Left-associativity
+            node.* = .{
+                .binary_expression = binexpr
+            };
+
+            expr_node = node;
         }
 
         return expr_node;
@@ -258,7 +269,6 @@ pub const FunctionCall = Rule(*ast.FunctionCall, struct {
         .lparen = token(.left_paren),
         .arglist = ArgumentList.parser,
         .rparen = token(.right_paren),
-        .semicolon = token(.semicolon),
     }));
 
     const FunctionCallParse = struct {
@@ -266,7 +276,6 @@ pub const FunctionCall = Rule(*ast.FunctionCall, struct {
         lparen: void,
         arglist: *ast.ArgumentList,
         rparen: void,
-        semicolon: void,
     };
 
     fn mapFunctionCall(from: FunctionCallParse) ast.FunctionCall {
@@ -277,7 +286,23 @@ pub const FunctionCall = Rule(*ast.FunctionCall, struct {
     }
 });
 
-pub const Return = Rule(?*ast.Expression, struct {
+pub const FunctionCallStatement = Rule(*ast.FunctionCall, struct {
+    pub const parser = mapValue(FunctionCallStatementParse, *ast.FunctionCall, mapFunctionCallStatement, sequence(FunctionCallStatementParse, "function call statement", &.{
+        .call = FunctionCall.parser,
+        .semicolon = token(.semicolon),
+    }));
+
+    const FunctionCallStatementParse = struct {
+        call: *ast.FunctionCall,
+        semicolon: void,
+    };
+
+    fn mapFunctionCallStatement(from: FunctionCallStatementParse) *ast.FunctionCall {
+        return from.call;
+    }
+});
+
+pub const ReturnStatement = Rule(?*ast.Expression, struct {
     pub const parser = mapValue(ReturnParse, ?*ast.Expression, mapReturn, sequence(ReturnParse, "return statement", &.{
         .ret = token(.kwd_return),
         .expression = maybe(*ast.Expression, Expression.parser),
@@ -298,8 +323,8 @@ pub const Return = Rule(?*ast.Expression, struct {
 pub const Statement = Rule(*ast.Statement, struct {
     pub const parser = first(*ast.Statement, "statement", &.{
         mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Definition.parser),
-        mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCall.parser),
-        mapAlloc(?*ast.Expression, ast.Statement, mapReturn, Return.parser),
+        mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCallStatement.parser),
+        mapAlloc(?*ast.Expression, ast.Statement, mapReturn, ReturnStatement.parser),
     });
 
     fn mapAssignment(from: *ast.Assignment) ast.Statement {
