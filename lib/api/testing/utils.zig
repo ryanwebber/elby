@@ -3,6 +3,7 @@ const ast = @import("../parsing/ast.zig");
 const types = @import("../types.zig");
 const grammar = @import("../parsing/grammar.zig");
 const compiler = @import("../irgen/compiler.zig");
+const interpreter = @import("../irgen/interpreter/interpreter.zig");
 const Parser = @import("../parsing/combinators.zig").Parser;
 const ParseBuilder = @import("../parsing/parser.zig").ParseBuilder;
 const Tokenizer = @import("../parsing/tokenizer.zig").Tokenizer;
@@ -18,10 +19,10 @@ const Error = error {
 const testTypes: []const types.Type = &.{
     types.Types.void,
     .{
-        .name = "i",
+        .name = "int",
         .value = .{
             .numeric = .{
-                .type = .float,
+                .type = .int,
                 .size = 1,
             }
         }
@@ -92,6 +93,24 @@ pub fn expectAst(allocator: *std.mem.Allocator, source: []const u8, expected: *c
     try std.json.stringify(actual, jsonOptions, actual_json_container.writer());
 
     try std.testing.expectEqualStrings(expected_json_container.items, actual_json_container.items);
+}
+
+pub fn evaluateIR(allocator: *std.mem.Allocator, source: []const u8) !interpreter.IntType {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer { arena.deinit(); }
+
+    const program = try toProgramAst(&arena, source);
+
+    const typeRegistry = types.TypeRegistry.init(interpreter.SimpleInterpreter.supportedTypes);
+    defer { typeRegistry.deinit(); }
+
+    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry);
+    defer { scheme.deinit(); }
+
+    var interpreterInstance = try interpreter.SimpleInterpreter.init(allocator, &scheme);
+    defer { interpreterInstance.deinit(); }
+
+    return try interpreterInstance.evaluate();
 }
 
 pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: []const u8, expectedIR: []const u8) !void {
