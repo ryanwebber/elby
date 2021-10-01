@@ -63,7 +63,8 @@ pub const FunctionPrototype = struct {
     const Self = @This();
 
     pub fn init(allocator: *std.mem.Allocator, node: *const ast.Function, typeRegistry: *const TypeRegistry) !Self {
-        const returnType = &types.Types.void; // TODO
+        const definedReturnType = if (node.returnType) |id| typeRegistry.getType(id.name) else null;
+        const resolvedReturnType = definedReturnType orelse &types.Types.void;
 
         // Parameters
         var params = std.ArrayList(Parameter).init(allocator);
@@ -102,14 +103,14 @@ pub const FunctionPrototype = struct {
         for (node.paramlist.parameters) |param| {
             try sigBuffer.writer().print("{s}:", .{ param.identifier.name });
         }
-        try sigBuffer.writer().print(") -> {s}", .{ returnType.name });
+        try sigBuffer.writer().print(") -> {s}", .{ resolvedReturnType.name });
 
         const name = try allocator.dupe(u8, node.identifier.name);
 
         return Self {
             .allocator = allocator,
             .parameters = params.toOwnedSlice(),
-            .returnType = returnType,
+            .returnType = resolvedReturnType,
             .identifier = idBuffer.toOwnedSlice(),
             .signature = sigBuffer.toOwnedSlice(),
             .name = name,

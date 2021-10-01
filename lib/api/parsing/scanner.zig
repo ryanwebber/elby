@@ -22,6 +22,7 @@ pub const Scanner = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
             .{ "let", .kwd_let },
             .{ "fn", .kwd_fn },
+            .{ "return", .kwd_return },
         });
 
         pub fn asID(name: []const u8) ?Token.Value {
@@ -82,6 +83,7 @@ pub const Scanner = struct {
             capture_number,
             capture_number_radix,
             capture_number_digits,
+            capture_arrow,
         } = .capture_source;
 
         // The offset to where this capture started
@@ -129,8 +131,7 @@ pub const Scanner = struct {
                             break;
                         },
                         '-' => {
-                            token.type = .minus;
-                            break;
+                            state = .capture_arrow;
                         },
                         '*' => {
                             token.type = .star;
@@ -261,6 +262,16 @@ pub const Scanner = struct {
                             self.backtrack(slice);
                             break;
                         }
+                    }
+                },
+                .capture_arrow => {
+                    if (slice[0] == '>') {
+                        token.type = .arrow;
+                        break;
+                    } else {
+                        token.type = .minus;
+                        self.backtrack(slice);
+                        break;
                     }
                 },
             }

@@ -11,12 +11,14 @@ pub const Token = struct {
     pub const Value = union(enum) {
         identifier: []const u8,
         number_literal: types.Numeric,
+        arrow,
         assignment,
         colon,
         comma,
         fslash,
         kwd_fn,
         kwd_let,
+        kwd_return,
         left_brace,
         left_paren,
         minus,
@@ -38,6 +40,7 @@ pub const Token = struct {
 
     pub fn description(self: Token.Id) []const u8 {
         return switch (self) {
+            .arrow => "->",
             .assignment => "=",
             .number_literal => "number",
             .colon => ":",
@@ -45,6 +48,7 @@ pub const Token = struct {
             .fslash => "/",
             .kwd_fn => "fn",
             .kwd_let => "let",
+            .kwd_return => "return",
             .left_brace => "{",
             .left_paren => "(",
             .minus => "-",

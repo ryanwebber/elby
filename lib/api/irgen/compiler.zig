@@ -197,6 +197,30 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
         },
         .call => |call| {
             _ = try compileFunctionCall(call, dest, context);
+        },
+        .ret => |expr| {
+            const returnType = context.slotAllocator.prototype.returnType;
+            if ((returnType.size() > 0) != (expr != null)) {
+                return errors.fatal("Unexpected return type expression for type: {s}", .{ returnType.name });
+            }
+
+            if (returnType.size() > 0 and expr != null) {
+                const retvalSlot = try compileExpression(expr.?, returnType, dest, context);
+                try dest.append(.{
+                    .move = .{
+                        .src = .{
+                            .offset = 0,
+                            .slot = retvalSlot,
+                        },
+                        .dest = .{
+                            .offset = 0,
+                            .slot = Slot.retval,
+                        }
+                    }
+                });
+            }
+
+            try dest.append(Instruction.ret);
         }
     }
 }

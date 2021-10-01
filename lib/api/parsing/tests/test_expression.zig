@@ -15,6 +15,7 @@ test "parse mixed expression" {
                 .paramlist = &.{
                     .parameters = &.{}
                 },
+                .returnType = null,
                 .body = &.{
                     &.{
                         .assignment = &.{

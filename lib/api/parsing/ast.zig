@@ -57,6 +57,7 @@ pub const Assignment = struct {
 pub const Statement = union(enum) {
     assignment: *const Assignment,
     call: *const FunctionCall,
+    ret: ?*const Expression,
 };
 
 pub const Parameter = struct {
@@ -71,6 +72,7 @@ pub const ParameterList = struct {
 pub const Function = struct {
     identifier: *const Identifier,
     paramlist: *const ParameterList,
+    returnType: ?*const Identifier,
     body: []const *const Statement,
 };
 

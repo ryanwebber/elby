@@ -33,3 +33,37 @@ test "function call ir generation" {
 
     try utils.expectIR(std.testing.allocator, source, "main(z:)", expectedIR);
 }
+
+test "function return ir generation" {
+
+    const source =
+        \\fn add(a: i, b: i) -> i {
+        \\  return a + b;
+        \\}
+        ;
+
+    const expectedIR =
+        \\T0 := P0 + P1
+        \\RET[0] := T0[0]
+        \\return
+        \\
+        ;
+
+    try utils.expectIR(std.testing.allocator, source, "add(a:b:)", expectedIR);
+}
+
+test "function void return" {
+
+    const source =
+        \\fn test(a: i, b: i) {
+        \\  return;
+        \\}
+        ;
+
+    const expectedIR =
+        \\return
+        \\
+        ;
+
+    try utils.expectIR(std.testing.allocator, source, "test(a:b:)", expectedIR);
+}

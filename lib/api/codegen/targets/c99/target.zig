@@ -56,7 +56,6 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
             try writer.print("();\n\n", .{});
         }
 
-
         try writer.print("\n", .{});
 
         for (scheme.functions.definitions) |definition| {
@@ -129,6 +128,9 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                     try writer.print("\t", .{});
                     try writeMangledName(scheme, writer, callPrototype);
                     try writer.print("();\n", .{});
+                },
+                .ret => {
+                    try writer.print("\treturn;\n", .{});
                 }
             }
         }

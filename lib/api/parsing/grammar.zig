@@ -16,6 +16,7 @@ const list = combinators.list;
 const map = combinators.map;
 const mapAlloc = combinators.mapAlloc;
 const mapValue = combinators.mapValue;
+const maybe = combinators.maybe;
 const orElse = combinators.orElse;
 const sequence = combinators.sequence;
 const token = combinators.token;
@@ -276,10 +277,29 @@ pub const FunctionCall = Rule(*ast.FunctionCall, struct {
     }
 });
 
+pub const Return = Rule(?*ast.Expression, struct {
+    pub const parser = mapValue(ReturnParse, ?*ast.Expression, mapReturn, sequence(ReturnParse, "return statement", &.{
+        .ret = token(.kwd_return),
+        .expression = maybe(*ast.Expression, Expression.parser),
+        .semicolon = token(.semicolon),
+    }));
+
+    const ReturnParse = struct {
+        ret: void,
+        expression: ?*ast.Expression,
+        semicolon: void,
+    };
+
+    fn mapReturn(from: ReturnParse) ?*ast.Expression {
+        return from.expression;
+    }
+});
+
 pub const Statement = Rule(*ast.Statement, struct {
     pub const parser = first(*ast.Statement, "statement", &.{
         mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Definition.parser),
         mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCall.parser),
+        mapAlloc(?*ast.Expression, ast.Statement, mapReturn, Return.parser),
     });
 
     fn mapAssignment(from: *ast.Assignment) ast.Statement {
@@ -292,6 +312,28 @@ pub const Statement = Rule(*ast.Statement, struct {
         return .{
             .call = from,
         };
+    }
+
+    fn mapReturn(from: ?*ast.Expression) ast.Statement {
+        return .{
+            .ret = from,
+        };
+    }
+});
+
+pub const ReturnType = Rule(*ast.Identifier, struct {
+    pub const parser = mapValue(ReturnTypeParse, *ast.Identifier, mapReturnType, sequence(ReturnTypeParse, "return type", &.{
+        .arrow = token(.arrow),
+        .identifier = Identifier.parser,
+    }));
+
+    const ReturnTypeParse = struct {
+        arrow: void,
+        identifier: *ast.Identifier,
+    };
+
+    fn mapReturnType(from: ReturnTypeParse) *ast.Identifier {
+        return from.identifier;
     }
 });
 
@@ -334,6 +376,7 @@ pub const Function = Rule(*ast.Function, struct {
         .lparen = token(.left_paren),
         .parameters = ParameterList.parser,
         .rparen = token(.right_paren),
+        .returnType = maybe(*ast.Identifier, ReturnType.parser),
         .lbrace = token(.left_brace),
         .statements = atLeast(*ast.Statement, 0, "statements", Statement.parser),
         .rbrace = token(.right_brace),
@@ -345,6 +388,7 @@ pub const Function = Rule(*ast.Function, struct {
         lparen: void,
         parameters: *ast.ParameterList,
         rparen: void,
+        returnType: ?*ast.Identifier,
         lbrace: void,
         statements: []const *ast.Statement,
         rbrace: void,
@@ -354,6 +398,7 @@ pub const Function = Rule(*ast.Function, struct {
         return .{
             .identifier = from.name,
             .paramlist = from.parameters,
+            .returnType = from.returnType,
             .body = from.statements,
         };
     }

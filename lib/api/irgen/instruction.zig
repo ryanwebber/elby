@@ -60,6 +60,7 @@ pub const Instruction = union(enum) {
     mul: BinOp,
     div: BinOp,
     call: CallOp,
+    ret,
 
     // return
     // if <slot> goto <label>
@@ -92,6 +93,9 @@ pub const Instruction = union(enum) {
             },
             .call => |call| {
                 try call.format(writer);
+            },
+            .ret => {
+                try writer.print("return", .{});
             }
         }
     }

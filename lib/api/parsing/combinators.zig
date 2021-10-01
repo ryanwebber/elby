@@ -383,6 +383,16 @@ pub fn lazy(comptime Value: type, provider: fn() callconv(.Inline) Parser(Value)
     });
 }
 
+pub fn maybe(comptime Value: type, parser: Parser(Value)) Parser(?Value) {
+    const Local = struct {
+        fn mapOptional(value: Value) ?Value {
+            return value;
+        }
+    };
+
+    return orElse(?Value, mapValue(Value, ?Value, Local.mapOptional, parser), null);
+}
+
 pub fn orElse(comptime Value: type, parser: Parser(Value), elseVal: Value) Parser(Value) {
     const MappedProduction = Production(Value);
     return Parser(Value).init(struct {
