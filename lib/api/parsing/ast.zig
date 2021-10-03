@@ -6,7 +6,9 @@ pub const BinOp = enum {
     op_minus,
     op_mul,
     op_div,
+    op_equality,
 
+    // For testing
     pub fn jsonStringify(self: BinOp, _: anytype, out_stream: anytype) !void {
         try out_stream.writeAll(@tagName(self));
     }
@@ -57,10 +59,22 @@ pub const Assignment = struct {
     expression: *const Expression,
 };
 
+pub const ElseIf = union(enum) {
+    conditional: *const IfChain,
+    terminal: []const *const Statement,
+};
+
+pub const IfChain = struct {
+    expr: *const Expression,
+    statements: []const *const Statement,
+    next: ?ElseIf,
+};
+
 pub const Statement = union(enum) {
     assignment: *const Assignment,
     call: *const FunctionCall,
     ret: ?*const Expression,
+    ifchain: *const IfChain,
 };
 
 pub const Parameter = struct {

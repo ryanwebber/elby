@@ -95,6 +95,21 @@ pub fn expectAst(allocator: *std.mem.Allocator, source: []const u8, expected: *c
     try std.testing.expectEqualStrings(expected_json_container.items, actual_json_container.items);
 }
 
+/// Compiles the source to IR and runs it in an interpreter, returing the value
+/// returned by the entry function.
+///
+/// ### Supported types
+///  * `int`: Simple integer type
+///
+/// ### Format
+/// Entry point is a `main() -> int` function that is expected to be defined
+///
+/// ### Example
+/// ```
+/// fn main() -> int {
+///   return 1 + 2;
+/// }
+/// ```
 pub fn evaluateIR(allocator: *std.mem.Allocator, source: []const u8) !interpreter.IntType {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer { arena.deinit(); }
@@ -111,6 +126,28 @@ pub fn evaluateIR(allocator: *std.mem.Allocator, source: []const u8) !interprete
     defer { interpreterInstance.deinit(); }
 
     return try interpreterInstance.evaluate();
+}
+
+pub fn dumpIR(allocator: *std.mem.Allocator, source: []const u8, writer: anytype) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer { arena.deinit(); }
+
+    const program = try toProgramAst(&arena, source);
+
+
+    const typeRegistry = types.TypeRegistry.init(testTypes);
+    defer { typeRegistry.deinit(); }
+
+    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry);
+    defer { scheme.deinit(); }
+
+
+
+    try writer.print("\n", .{});
+    for (scheme.functions.definitions) |defn| {
+        try writer.print("\n;\n; fn {s}\n;\n", .{ defn.prototype.signature });
+        try defn.body.write(writer);
+    }
 }
 
 pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: []const u8, expectedIR: []const u8) !void {

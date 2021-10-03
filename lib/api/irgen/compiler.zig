@@ -11,6 +11,7 @@ const Instruction = @import("instruction.zig").Instruction;
 const FunctionDefinition = func.FunctionDefinition;
 const FunctionPrototype = func.FunctionPrototype;
 const FunctionBody = func.FunctionBody;
+const InstructionSetBuilder = FunctionBody.Builder;
 const FunctionLayout = func.FunctionLayout;
 const NamedSlot = func.NamedSlot;
 const PrototypeRegistry = func.PrototypeRegistry;
@@ -143,7 +144,7 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
         prototypeRegistry.deinit();
     }
 
-    var functions = std.ArrayList(*const FunctionDefinition).init(allocator);
+    var functions = std.ArrayList(*FunctionDefinition).init(allocator);
     errdefer {
         for (functions.items) |f| {
             f.deinit();
@@ -151,9 +152,6 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
         }
     }
     defer { functions.deinit(); }
-
-    var instructions = std.ArrayList(Instruction).init(allocator);
-    defer { instructions.deinit(); }
 
     for (program.functions) |function| {
         const prototype = try FunctionPrototype.init(allocator, function, typeRegistry);
@@ -169,9 +167,12 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
         var context = try Context.init(allocator, &prototype, &prototypeRegistry, typeRegistry);
         defer { context.deinit(); }
 
-        try compileFunction(function, &instructions, &context);
+        var builder = InstructionSetBuilder.init(allocator);
+        errdefer { builder.deinit(); }
 
-        const body = try FunctionBody.initManaged(allocator, instructions.toOwnedSlice());
+        try compileFunction(function, &builder, &context);
+
+        var body = try builder.buildAndDispose();
         errdefer { body.deinit(); }
 
         const layout = calculateLayout: {
@@ -195,19 +196,23 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
     return Scheme.init(allocator, registry);
 }
 
-pub fn compileFunction(function: *const ast.Function, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
-    for (function.body) |statement| {
-        try compileStatement(statement, dest, context);
+pub fn compileFunction(function: *const ast.Function, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
+    try compileBlock(function.body, builder, context);
+}
+
+fn compileBlock(statements: []const *const ast.Statement, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
+    for (statements) |statement| {
+        try compileStatement(statement, builder, context);
     }
 }
 
-fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
+fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
     switch (statement.*) {
         .assignment => |assignment| {
-            try compileAssignment(assignment, dest, context);
+            try compileAssignment(assignment, builder, context);
         },
         .call => |call| {
-            _ = try compileFunctionCall(call, dest, context);
+            _ = try compileFunctionCall(call, builder, context);
         },
         .ret => |expr| {
             const returnType = context.currentPrototype().returnType;
@@ -216,8 +221,8 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
             }
 
             if (returnType.size() > 0 and expr != null) {
-                const retvalSlot = try compileExpression(expr.?, returnType, dest, context);
-                try dest.append(.{
+                const retvalSlot = try compileExpression(expr.?, returnType, builder, context);
+                try builder.addInstruction(.{
                     .move = .{
                         .src = .{
                             .offset = 0,
@@ -231,12 +236,53 @@ fn compileStatement(statement: *const ast.Statement, dest: *std.ArrayList(Instru
                 });
             }
 
-            try dest.append(Instruction.ret);
+            try builder.addInstruction(Instruction.ret);
+        },
+        .ifchain => |ifnode| {
+            const endLabel = try builder.addLabel(0);
+            var nextNode: ?*const ast.IfChain = ifnode;
+            while (nextNode) |currentNode| {
+                const exprSlot = try compileExpression(currentNode.expr, &types.Types.boolean, builder, context);
+                const nextCondLabel = try builder.addLabel(0);
+
+                try builder.addInstruction(.{
+                    .if_not_goto = .{
+                        .slot = exprSlot,
+                        .label = nextCondLabel,
+                    }
+                });
+
+                try compileBlock(currentNode.statements, builder, context);
+
+                try builder.addInstruction(.{
+                    .goto = .{
+                        .label = endLabel,
+                    }
+                });
+
+                builder.updateLabel(nextCondLabel, 0);
+
+                // This needs to be set in the case there are else-ifs
+                nextNode = null;
+
+                if (currentNode.next) |elseIf| {
+                    switch (elseIf) {
+                        .conditional => |ifElseNode| {
+                            nextNode = ifElseNode;
+                        },
+                        .terminal => |elseStatements| {
+                            try compileBlock(elseStatements, builder, context);
+                        },
+                    }
+                }
+            }
+
+            builder.updateLabel(endLabel, 0);
         }
     }
 }
 
-fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instruction), context: *Context) SystemError!?SlotTypePair {
+fn compileFunctionCall(call: *const ast.FunctionCall, builder: *InstructionSetBuilder, context: *Context) SystemError!?SlotTypePair {
 
     const functionLookup = try context.prototypeRegistry.lookupCall(call);
     defer { functionLookup.deinit(); }
@@ -255,11 +301,11 @@ fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instr
 
     for (call.arglist.arguments) |arg, i| {
         const targetType = functionPrototype.parameters[i].type;
-        argSlots[i] = try compileExpression(arg.expression, targetType, dest, context);
+        argSlots[i] = try compileExpression(arg.expression, targetType, builder, context);
     }
 
     for (call.arglist.arguments) |_, i| {
-        try dest.append(.{
+        try builder.addInstruction(.{
             .move = .{
                 .src = .{
                     .offset = 0,
@@ -282,7 +328,7 @@ fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instr
         });
     }
 
-    try dest.append(.{
+    try builder.addInstruction(.{
         .call = .{
             .functionId = functionPrototype.identifier,
         }
@@ -303,15 +349,15 @@ fn compileFunctionCall(call: *const ast.FunctionCall, dest: *std.ArrayList(Instr
     }
 }
 
-fn compileAssignment(assignment: *const ast.Assignment, dest: *std.ArrayList(Instruction), context: *Context) SystemError!void {
+fn compileAssignment(assignment: *const ast.Assignment, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
     const typeName = assignment.type.identifier.name;
     const targetType = context.typeRegistry.getType(typeName) orelse {
         return errors.fatal("Unknown type: {s}", .{ typeName });
     };
 
-    const exprSlot = try compileExpression(assignment.expression, targetType, dest, context);
+    const exprSlot = try compileExpression(assignment.expression, targetType, builder, context);
     const destSlot = try context.slotAllocator.allocateLocalSlot(assignment.identifier.name, targetType);
-    try dest.append(.{
+    try builder.addInstruction(.{
         .move = .{
             .src = .{
                 .slot = exprSlot,
@@ -325,11 +371,11 @@ fn compileAssignment(assignment: *const ast.Assignment, dest: *std.ArrayList(Ins
     });
 }
 
-fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type, dest: *std.ArrayList(Instruction), context: *Context) SystemError!Slot {
+fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type, builder: *InstructionSetBuilder, context: *Context) SystemError!Slot {
     switch (expr.*) {
         .number_literal => |node| {
             const slot = try context.slotAllocator.allocateTemporarySlot(targetType);
-            try dest.append(.{
+            try builder.addInstruction(.{
                 .load = .{
                     .dest = slot,
                     .value = node.value,
@@ -342,8 +388,8 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
             return try context.slotAllocator.lookupNamedSlot(identifier.name);
         },
         .binary_expression => |node| {
-            const lhs = try compileExpression(node.lhs, targetType, dest, context);
-            const rhs = try compileExpression(node.rhs, targetType, dest, context);
+            const lhs = try compileExpression(node.lhs, targetType, builder, context);
+            const rhs = try compileExpression(node.rhs, targetType, builder, context);
             const slot = try context.slotAllocator.allocateTemporarySlot(targetType);
             const instruction: Instruction = switch (node.op) {
                 .op_plus => .{
@@ -374,16 +420,23 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
                         .rhs = rhs
                     }
                 },
+                .op_equality => .{
+                    .cmp_eq = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
             };
 
-            try dest.append(instruction);
+            try builder.addInstruction(instruction);
 
             return slot;
         },
         .function_call => |call| {
-            if (try compileFunctionCall(call, dest, context)) |returnInfo| {
+            if (try compileFunctionCall(call, builder, context)) |returnInfo| {
                 const destSlot = try context.slotAllocator.allocateTemporarySlot(returnInfo.type);
-                try dest.append(.{
+                try builder.addInstruction(.{
                     .move = .{
                         .src = .{
                             .slot = returnInfo.slot,

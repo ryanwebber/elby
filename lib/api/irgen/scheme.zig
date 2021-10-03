@@ -22,14 +22,14 @@ pub const Scheme = struct {
 
 pub const FunctionRegistry = struct {
     allocator: *std.mem.Allocator,
-    definitions: []const *const FunctionDefinition,
-    mapping: std.StringHashMap(*const FunctionDefinition),
+    definitions: []const *FunctionDefinition,
+    mapping: std.StringHashMap(*FunctionDefinition),
     prototypeRegistry: PrototypeRegistry,
 
     const Self = @This();
 
-    pub fn initManaged(allocator: *std.mem.Allocator, definitions: []const *const FunctionDefinition, prototypes: PrototypeRegistry) !Self {
-        var mapping = std.StringHashMap(*const FunctionDefinition).init(allocator);
+    pub fn initManaged(allocator: *std.mem.Allocator, definitions: []const *FunctionDefinition, prototypes: PrototypeRegistry) !Self {
+        var mapping = std.StringHashMap(*FunctionDefinition).init(allocator);
         errdefer { mapping.deinit(); }
 
         for (definitions) |def| {

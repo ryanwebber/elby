@@ -52,6 +52,17 @@ const CallOp = struct {
     }
 };
 
+const ConditionalGoto = struct {
+    slot: slot.Slot,
+    label: []const u8,
+
+    pub fn format(self: *const ConditionalGoto, writer: anytype) !void {
+        try writer.print("if not ", .{});
+        try self.slot.format(writer);
+        try writer.print(" goto :{s}", .{ self.label });
+    }
+};
+
 pub const Instruction = union(enum) {
     load: LoadOp,
     move: MoveOp,
@@ -59,7 +70,10 @@ pub const Instruction = union(enum) {
     sub: BinOp,
     mul: BinOp,
     div: BinOp,
+    cmp_eq: BinOp,
     call: CallOp,
+    goto: struct { label: []const u8 },
+    if_not_goto: ConditionalGoto,
     ret,
 
     // return
@@ -73,30 +87,39 @@ pub const Instruction = union(enum) {
 
     pub fn format(self: *const Instruction, writer: anytype) !void {
         switch (self.*) {
-            .load => |load| {
-                try load.format(writer);
+            .load => |op| {
+                try op.format(writer);
             },
-            .move => |move| {
-                try move.format(writer);
+            .move => |op| {
+                try op.format(writer);
             },
-            .add => |add| {
-                try add.format(writer, "+");
+            .add => |op| {
+                try op.format(writer, "+");
             },
-            .sub => |add| {
-                try add.format(writer, "-");
+            .sub => |op| {
+                try op.format(writer, "-");
             },
-            .mul => |add| {
-                try add.format(writer, "*");
+            .mul => |op| {
+                try op.format(writer, "*");
             },
-            .div => |add| {
-                try add.format(writer, "/");
+            .div => |op| {
+                try op.format(writer, "/");
+            },
+            .cmp_eq => |op| {
+                try op.format(writer, "==");
             },
             .call => |call| {
                 try call.format(writer);
             },
+            .goto => |op| {
+                try writer.print("goto :{s}", .{ op.label });
+            },
+            .if_not_goto => |op| {
+                try op.format(writer);
+            },
             .ret => {
                 try writer.print("return", .{});
-            }
+            },
         }
     }
 };

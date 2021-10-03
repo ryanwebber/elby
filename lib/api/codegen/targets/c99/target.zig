@@ -47,7 +47,9 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
     pub fn compileScheme(uc: *UserContext, scheme: *const Scheme) ErrorType!void {
         var stream = try uc.context.requestOutputStream("main.c");
         var writer = stream.writer();
-        try writer.print("#include <stdint.h>\n\n", .{});
+        try writer.print("#include <stdint.h>\n", .{});
+        try writer.print("#include <stdbool.h>\n", .{});
+        try writer.print("\n", .{});
 
         for (scheme.functions.definitions) |definition| {
             try writeFunctionParameters(scheme, writer, definition);
@@ -120,6 +122,9 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                 .div => |div| {
                     try writeBinOp(scheme, writer, &div.dest, &div.lhs, &div.rhs, "+", function);
                 },
+                .cmp_eq => |op| {
+                    try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "==", function);
+                },
                 .call => |call| {
                     const callPrototype = scheme.functions.prototypeRegistry.lookupTable.getPtr(call.functionId) orelse {
                         return fatal("Unknown function: {s}", .{ call.functionId });
@@ -128,6 +133,14 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                     try writer.print("\t", .{});
                     try writeMangledName(scheme, writer, callPrototype);
                     try writer.print("();\n", .{});
+                },
+                .goto => |offset| {
+                    _ = offset;
+                    unreachable;
+                },
+                .if_not_goto => |goto| {
+                    _ = goto;
+                    unreachable;
                 },
                 .ret => {
                     try writer.print("\treturn;\n", .{});

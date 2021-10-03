@@ -4,6 +4,8 @@ const functions = @import("../irgen/function.zig");
 const slots = @import("../irgen/slot.zig");
 const _scheme = @import("../irgen/scheme.zig");
 
+const systemTypes = types.systemTypes;
+
 pub const Type = types.Type;
 pub const Numeric = types.Numeric;
 pub const Slot = slots.Slot;
@@ -47,10 +49,6 @@ pub fn Target(comptime UserContext: type, comptime ErrorType: type, comptime Bui
     const contextDeinitFn: fn(userContext: *UserContext) void = UserContext.deinit;
 
     // End type validation
-
-    const systemTypes: []const Type = &.{
-        types.Types.void,
-    };
 
     return struct {
         name: []const u8 = name,

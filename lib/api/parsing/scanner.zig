@@ -9,6 +9,14 @@ const SyntaxError = @import("syntax_error.zig").SyntaxError;
 
 const verbose_logging = false;
 
+const SingleLookahead = struct {
+    fallback: Token.Value,
+    possibles: []const struct {
+        char: u8,
+        token: Token.Value
+    },
+};
+
 pub const Scanner = struct {
     allocator: *std.mem.Allocator,
     iterator: std.unicode.Utf8Iterator,
@@ -20,7 +28,9 @@ pub const Scanner = struct {
 
     pub const Keyword = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
+            .{ "else", .kwd_else },
             .{ "let", .kwd_let },
+            .{ "if", .kwd_if },
             .{ "fn", .kwd_fn },
             .{ "return", .kwd_return },
         });
@@ -83,7 +93,7 @@ pub const Scanner = struct {
             capture_number,
             capture_number_radix,
             capture_number_digits,
-            capture_arrow,
+            capture_lookahead: SingleLookahead,
         } = .capture_source;
 
         // The offset to where this capture started
@@ -93,7 +103,7 @@ pub const Scanner = struct {
         // token range, and can be modified to account for ex. pre-buffered tokens
         var tok_end_backtrack = @intCast(usize, 0);
 
-        while (self.iterator.nextCodepointSlice()) |slice| {
+        loop: while (self.iterator.nextCodepointSlice()) |slice| {
 
             if (verbose_logging) {
                 std.debug.print("[Lex] State: {}\n", .{state});
@@ -123,15 +133,28 @@ pub const Scanner = struct {
                             self.current_line += 1;
                         },
                         '=' => {
-                            token.type = .assignment;
-                            break;
+                            state = .{
+                                .capture_lookahead = .{
+                                    .fallback = .assignment,
+                                    .possibles = &.{
+                                        .{ .char = '=', .token = Token.Value.equality },
+                                    }
+                                }
+                            };
                         },
                         '+' => {
                             token.type = .plus;
                             break;
                         },
                         '-' => {
-                            state = .capture_arrow;
+                            state = .{
+                                .capture_lookahead = .{
+                                    .fallback = .minus,
+                                    .possibles = &.{
+                                        .{ .char = '>', .token = Token.Value.arrow },
+                                    }
+                                }
+                            };
                         },
                         '*' => {
                             token.type = .star;
@@ -264,15 +287,17 @@ pub const Scanner = struct {
                         }
                     }
                 },
-                .capture_arrow => {
-                    if (slice[0] == '>') {
-                        token.type = .arrow;
-                        break;
-                    } else {
-                        token.type = .minus;
-                        self.backtrack(slice);
-                        break;
+                .capture_lookahead => |lookahead| {
+                    for (lookahead.possibles) |p| {
+                        if (slice[0] == p.char) {
+                            token.type = p.token;
+                            break :loop;
+                        }
                     }
+
+                    token.type = lookahead.fallback;
+                    self.backtrack(slice);
+                    break;
                 },
             }
         } else {

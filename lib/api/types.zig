@@ -129,13 +129,28 @@ pub const TypeRegistry = struct {
     }
 };
 
+/// Types that get included for all targets
+pub const systemTypes: []const Type = &.{
+    Types.void,
+    Types.boolean,
+};
+
 pub const Types = .{
     .void = Type {
-        .name = "void",
+        .name = "Void",
         .value = .{
             .enumerable = .{
                 .size = 0,
-                .values = &.{ "void" }
+                .values = &.{ "Void" }
+            }
+        }
+    },
+    .boolean = Type {
+        .name = "Bool",
+        .value = .{
+            .enumerable = .{
+                .size = 1,
+                .values = &.{ "false", "true", }
             }
         }
     }

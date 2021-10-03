@@ -22,7 +22,7 @@ pub const FunctionDefinition = struct {
         };
     }
 
-    pub fn deinit(self: *const Self) void {
+    pub fn deinit(self: *Self) void {
         self.body.deinit();
         self.layout.deinit();
         self.prototype.deinit();
@@ -176,19 +176,128 @@ pub const FunctionLayout = struct {
 pub const FunctionBody = struct {
     allocator: *std.mem.Allocator,
     instructions: []const Instruction,
+    labels: std.StringHashMap(usize),
+    labelLookup: LabelLookup,
 
     const Self = @This();
 
-    pub fn initManaged(allocator: *std.mem.Allocator, instructions: []const Instruction) !Self {
+    pub const LabelLookup = std.AutoHashMap(usize, std.ArrayList([]const u8));
+
+    fn internalInit(allocator: *std.mem.Allocator,
+                    instructions: []const Instruction,
+                    labels: std.StringHashMap(usize),
+                    labelLookup: LabelLookup) Self {
+
         return Self {
             .allocator = allocator,
             .instructions = instructions,
+            .labels = labels,
+            .labelLookup = labelLookup
         };
     }
 
-    pub fn deinit(self: *const Self) void {
+    pub fn deinit(self: *Self) void {
+
+        var iterator2 = self.labelLookup.valueIterator();
+        while (iterator2.next()) |list| {
+            list.deinit();
+        }
+
+        var iterator = self.labels.keyIterator();
+        while (iterator.next()) |label| {
+            self.allocator.free(label.*);
+        }
+
+        self.labels.deinit();
+        self.labelLookup.deinit();
         self.allocator.free(self.instructions);
     }
+
+    pub fn write(self: *const Self, writer: anytype) !void {
+        for (self.instructions) |*instr, i| {
+            if (self.labelLookup.get(i)) |labels| {
+                for (labels.items) |label| {
+                    try writer.print("{s}:\n", .{ label });
+                }
+            }
+
+            try writer.print("\t", .{});
+            try instr.format(writer);
+            try writer.print("\n", .{});
+        }
+    }
+
+    pub const Builder = struct {
+        allocator: *std.mem.Allocator,
+        instructions: std.ArrayList(Instruction),
+        labels: std.StringHashMap(usize),
+
+        pub fn init(allocator: *std.mem.Allocator) Builder {
+            return .{
+                .allocator = allocator,
+                .instructions = std.ArrayList(Instruction).init(allocator),
+                .labels = std.StringHashMap(usize).init(allocator),
+            };
+        }
+
+        pub fn addInstruction(self: *Builder, instruction: Instruction) !void {
+            try self.instructions.append(instruction);
+        }
+
+        pub fn addLabel(self: *Builder, offset: usize) ![]const u8 {
+            const pc = offset + self.instructions.items.len;
+            var buffer = std.ArrayList(u8).init(self.allocator);
+            try buffer.writer().print("label_{d}", .{ self.labels.count() });
+            const label = buffer.toOwnedSlice();
+            errdefer { self.allocator.free(label); }
+
+            try self.labels.put(label, pc);
+            return label;
+        }
+
+        pub fn updateLabel(self: *Builder, label: []const u8, offset: usize) void {
+            const pc = offset + self.instructions.items.len;
+            if (self.labels.getPtr(label)) |value| {
+                value.* = pc;
+            }
+        }
+
+        pub fn deinit(self: *Builder) void {
+            var iterator = self.labels.keyIterator();
+            while (iterator.next()) |label| {
+                self.allocator.free(label.*);
+            }
+
+            self.labels.deinit();
+            self.instructions.deinit();
+        }
+
+        pub fn buildAndDispose(self: *Builder) !FunctionBody {
+            defer { self.instructions.deinit(); }
+
+            var labelLookup = LabelLookup.init(self.allocator);
+            errdefer {
+                var iterator = labelLookup.valueIterator();
+                while (iterator.next()) |list| {
+                    list.deinit();
+                }
+
+                labelLookup.deinit();
+            }
+
+            var iterator = self.labels.iterator();
+            while (iterator.next()) |entry| {
+                var current = try labelLookup.getOrPut(entry.value_ptr.*);
+                if (!current.found_existing) {
+                    current.value_ptr.* = std.ArrayList([]const u8).init(self.allocator);
+                }
+
+                try current.value_ptr.append(entry.key_ptr.*);
+            }
+
+            return FunctionBody.internalInit(self.allocator, self.instructions.toOwnedSlice(), self.labels, labelLookup);
+        }
+    };
 };
 
 pub const PrototypeRegistry = struct {

@@ -10,7 +10,7 @@ const Numeric = types.Numeric;
 pub const IntType = i32;
 
 pub const InterpreterError = error {
-    FunctionNotFound,
+    FunctionNotFound, LabelNotFound,
 };
 
 pub const SimpleInterpreter = struct {
@@ -109,12 +109,32 @@ pub const SimpleInterpreter = struct {
                 .div => |add| {
                     (try fnData.getPtr(&add.dest)).* = @divFloor((try fnData.getPtr(&add.lhs)).*, (try fnData.getPtr(&add.rhs)).*);
                 },
+                .cmp_eq => |op| {
+                    (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* == (try fnData.getPtr(&op.rhs)).*);
+                },
                 .call => |call| {
                     const callFunction = self.scheme.functions.mapping.get(call.functionId) orelse {
                         return InterpreterError.FunctionNotFound;
                     };
 
                     try self.evaluateFunction(callFunction);
+                },
+                .goto => |op| {
+                    const offset = definition.body.labels.get(op.label) orelse {
+                        return InterpreterError.LabelNotFound;
+                    };
+
+                    pc = offset - 1;
+                },
+                .if_not_goto => |op| {
+                    const slotValue = (try fnData.getPtr(&op.slot)).*;
+                    if (slotValue == 0) {
+                        const offset = definition.body.labels.get(op.label) orelse {
+                            return InterpreterError.LabelNotFound;
+                        };
+
+                        pc = offset - 1;
+                    }
                 },
                 .ret => {
                     return;
