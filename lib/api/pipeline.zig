@@ -30,7 +30,7 @@ const ModuleResolver = struct {
 
 pub fn compileSource(comptime Target: type, arena: *std.heap.ArenaAllocator, module: *const Module) !PipelineResult {
     var allocator = &arena.allocator;
-    var context = targets.Context.init();
+    var context = targets.Context.init(allocator);
     var target = try Target.init(&context);
     defer { target.deinit(); }
 
@@ -62,7 +62,15 @@ test {
         \\    let x: uint8_t = 5 - 3 * 2 / (0x1 + 0);
         \\    let y: uint8_t = x * x;
         \\    let z: uint8_t = 0;
-        \\    foo(abc: 9, def: x + y);
+        \\    if (x == y) {
+        \\      foo(abc: 9, def: x + y);
+        \\    } else if (x == z) {
+        \\      foo(abc: 9, def: x + z);
+        \\    } else {
+        \\      foo(abc: 9, def: 0);
+        \\    }
+        \\
+        \\    let q: uint8_t = 5;
         \\}
         \\
         \\fn foo(abc: uint8_t, def: uint8_t) {

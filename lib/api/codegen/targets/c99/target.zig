@@ -4,6 +4,7 @@ const target = @import("../../target.zig");
 const Scheme = target.Scheme;
 const Context = target.Context;
 const Type = target.Type;
+const StdTypes = target.StdTypes;
 const Numeric = target.Numeric;
 const FunctionPrototype = target.FunctionPrototype;
 const FunctionDefinition = target.FunctionDefinition;
@@ -45,12 +46,18 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
     pub const types: []const Type = cTypes;
 
     pub fn compileScheme(uc: *UserContext, scheme: *const Scheme) ErrorType!void {
-        var stream = try uc.context.requestOutputStream("main.c");
-        var writer = stream.writer();
-        try writer.print("#include <stdint.h>\n", .{});
-        try writer.print("#include <stdbool.h>\n", .{});
-        try writer.print("\n", .{});
+        var fileStream = try uc.context.requestOutputStream("main.c");
 
+        var buffer = std.ArrayList(u8).init(uc.context.allocator);
+        defer { buffer.deinit(); }
+
+        const template = @embedFile("template.c.in");
+        try writeScheme(buffer.writer(), scheme);
+
+        try fileStream.writer().print(template, .{ .body = buffer.items });
+    }
+
+    pub fn writeScheme(writer: anytype, scheme: *const Scheme) ErrorType!void {
         for (scheme.functions.definitions) |definition| {
             try writeFunctionParameters(scheme, writer, definition);
             try writer.print("void ", .{});
@@ -74,7 +81,8 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
 
     fn writeFunctionParameters(scheme: *const Scheme, writer: anytype, definition: *const FunctionDefinition) !void {
         for (definition.layout.params) |param, i| {
-            try writer.print("{s} ", .{ param.type.name });
+            try writeType(writer, param.type);
+            try writer.print(" ", .{});
             try writeMangledName(scheme, writer, &definition.prototype);
             try writer.print("__param__{d};\n", .{ i });
         }
@@ -82,18 +90,28 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
 
     fn writeFunctionWorkspace(_: *const Scheme, writer: anytype, layout: *const FunctionLayout) !void {
         for (layout.locals) |*local| {
-            try writer.print("\t{s} {s};\n", .{ local.type.name, local.name });
+            try writer.print("\t", .{});
+            try writeType(writer, local.type);
+            try writer.print(" {s};\n", .{ local.name });
         }
 
         try writer.print("\n", .{});
 
         for (layout.workspace.mapping) |*tmp, i| {
-            try writer.print("\t{s} __temp_{d};\n", .{ tmp.type.name, i });
+            try writer.print("\t", .{});
+            try writeType(writer, tmp.type);
+            try writer.print(" __temp_{d};\n", .{ i });
         }
     }
 
     fn writeFunctionBody(scheme: *const Scheme, writer: anytype, function: *const FunctionDefinition) !void {
-        for (function.body.instructions) |instruction| {
+        for (function.body.instructions) |instruction, i| {
+            if (function.body.labelLookup.get(i)) |labels| {
+                for (labels.items) |label| {
+                    try writer.print("{s}:\n", .{ label });
+                }
+            }
+
             switch (instruction) {
                 .load => |load| {
                     const destType = try function.getSlotType(&load.dest, &scheme.functions.prototypeRegistry);
@@ -134,13 +152,14 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                     try writeMangledName(scheme, writer, callPrototype);
                     try writer.print("();\n", .{});
                 },
-                .goto => |offset| {
-                    _ = offset;
-                    unreachable;
+                .goto => |op| {
+                    try writer.print("\tgoto {s};\n", .{ op.label });
                 },
-                .if_not_goto => |goto| {
-                    _ = goto;
-                    unreachable;
+                .if_not_goto => |op| {
+                    try writer.print("\tif(!", .{});
+                    try writeName(scheme, writer, &op.slot, function);
+                    try writer.print(")\n", .{});
+                    try writer.print("\t\tgoto {s};\n", .{ op.label });
                 },
                 .ret => {
                     try writer.print("\treturn;\n", .{});
@@ -163,9 +182,14 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
         try writer.print("{s}", .{ prototype.name });
     }
 
-    fn writeType(_: *const Scheme, writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {
-        const slotType = definition.getSlotType(slot);
-        try writer.print("{s}", .{ slotType.name });
+    fn writeType(writer: anytype, typeDef: *const Type) !void {
+        if (typeDef.equals(&StdTypes.boolean)) {
+            try writer.print("bool", .{});
+        } else if (typeDef.equals(&StdTypes.void)) {
+            try writer.print("void", .{});
+        } else {
+            try writer.print("{s}", .{ typeDef.name });
+        }
     }
 
     fn writeName(scheme: *const Scheme, writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {

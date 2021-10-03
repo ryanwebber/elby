@@ -7,6 +7,7 @@ const _scheme = @import("../irgen/scheme.zig");
 const systemTypes = types.systemTypes;
 
 pub const Type = types.Type;
+pub const StdTypes = types.Types;
 pub const Numeric = types.Numeric;
 pub const Slot = slots.Slot;
 pub const SlotIndex = slots.SlotIndex;
@@ -21,19 +22,21 @@ pub const fatal = @import("../error.zig").fatal;
 pub var temp: [4096]u8 = undefined;
 
 pub const Context = struct {
-    stream: std.io.StreamSource,
+    allocator: *std.mem.Allocator,
+    __stream: std.io.StreamSource,
     const Self = @This();
 
-    pub fn init() Self {
+    pub fn init(allocator: *std.mem.Allocator) Self {
         return .{
-            .stream = std.io.StreamSource {
+            .allocator = allocator,
+            .__stream = std.io.StreamSource {
                 .buffer = std.io.fixedBufferStream(&temp)
             }
         };
     }
 
     pub fn requestOutputStream(self: *Self, _: []const u8) !*std.io.StreamSource {
-        return &self.stream;
+        return &self.__stream;
     }
 
     pub fn deinit(_: *Self) void {

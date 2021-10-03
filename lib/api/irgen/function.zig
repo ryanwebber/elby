@@ -101,7 +101,7 @@ pub const FunctionPrototype = struct {
         defer { sigBuffer.deinit(); }
         try sigBuffer.writer().print("{s}(", .{ node.identifier.name });
         for (node.paramlist.parameters) |param| {
-            try sigBuffer.writer().print("{s}:", .{ param.identifier.name });
+            try sigBuffer.writer().print("{s}:{s},", .{ param.identifier.name, param.type.name });
         }
         try sigBuffer.writer().print(") -> {s}", .{ resolvedReturnType.name });
 
