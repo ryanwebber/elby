@@ -14,8 +14,8 @@ const PrototypeRegistry = target.PrototypeRegistry;
 const Slot = target.Slot;
 const fatal = target.fatal;
 
-const cTypes: []const Type = &.{
-    .{
+const C_Types = .{
+    .uint8_t = .{
         .name = "uint8_t",
         .value = .{
             .numeric = .{
@@ -26,38 +26,58 @@ const cTypes: []const Type = &.{
     },
 };
 
-const ErrorType = anyerror;
-const UserContext = struct {
-    context: *Context,
-    const Self = @This();
+pub const Target = target.Target(Generator, &.{
+    .name = "c99",
+    .types = &.{
+        C_Types.uint8_t,
+    },
+    .externs = &.{
+        .{
+            .name = "exit",
+            .returnType = &StdTypes.void,
+            .parameters = &.{
+                .{
+                    .name = "value",
+                    .type = &C_Types.uint8_t,
+                }
+            },
+        }
+    }
+});
 
-    pub fn init(context: *Context) ErrorType!Self {
-        return Self {
-            .context = context
+pub const Generator = struct {
+    context: *Context,
+
+    const Self = @This();
+    pub const Options = struct {
+        outputStream: std.io.StreamSource,
+    };
+
+    pub fn init(context: *Context) Self {
+        return .{
+            .context = context,
         };
     }
 
     pub fn deinit(_: *Self) void {
+        // Noop
     }
-};
 
-pub const Target = target.Target(UserContext, ErrorType, struct {
-    pub const name: []const u8 = "c99";
-    pub const types: []const Type = cTypes;
+    pub fn compileScheme(self: *Self, scheme: *const Scheme, options: *Options) !void {
+        try self.compileSchemeWithWriter(scheme, options.outputStream.writer());
+    }
 
-    pub fn compileScheme(uc: *UserContext, scheme: *const Scheme) ErrorType!void {
-        var fileStream = try uc.context.requestOutputStream("main.c");
-
-        var buffer = std.ArrayList(u8).init(uc.context.allocator);
+    pub fn compileSchemeWithWriter(self: *Self, scheme: *const Scheme, writer: anytype) !void {
+        var buffer = std.ArrayList(u8).init(self.context.allocator);
         defer { buffer.deinit(); }
 
-        const template = @embedFile("template.c.in");
         try writeScheme(buffer.writer(), scheme);
 
-        try fileStream.writer().print(template, .{ .body = buffer.items });
+        const template = @embedFile("template.c.in");
+        try writer.print(template, .{ .body = buffer.items });
     }
 
-    pub fn writeScheme(writer: anytype, scheme: *const Scheme) ErrorType!void {
+    pub fn writeScheme(writer: anytype, scheme: *const Scheme) !void {
         for (scheme.functions.definitions) |definition| {
             try writeFunctionParameters(scheme, writer, definition);
             try writer.print("void ", .{});
@@ -71,7 +91,7 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
             try writer.print("// fn {s}\n", .{ definition.prototype.signature });
             try writer.print("void ", .{});
             try writeMangledName(scheme, writer, &definition.prototype);
-            try writer.print("()\n{{\n", .{});
+            try writer.print("(void)\n{{\n", .{});
             try writeFunctionWorkspace(scheme, writer, &definition.layout);
             try writer.print("\n", .{});
             try writeFunctionBody(scheme, writer, definition);
@@ -144,8 +164,8 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                     try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "==", function);
                 },
                 .call => |call| {
-                    const callPrototype = scheme.functions.prototypeRegistry.lookupTable.getPtr(call.functionId) orelse {
-                        return fatal("Unknown function: {s}", .{ call.functionId });
+                    const callPrototype = scheme.functions.prototypeRegistry.lookupPrototype(call.functionId) orelse {
+                        return fatal("Unknown function in call: {s}", .{ call.functionId });
                     };
 
                     try writer.print("\t", .{});
@@ -179,7 +199,7 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
     }
 
     fn writeMangledName(_: *const Scheme, writer: anytype, prototype: *const FunctionPrototype) !void {
-        try writer.print("{s}", .{ prototype.name });
+        try writer.print("__{s}", .{ prototype.name });
     }
 
     fn writeType(writer: anytype, typeDef: *const Type) !void {
@@ -213,8 +233,8 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
                 try writeMangledName(scheme, writer, &prototype);
             },
             .call => |call| {
-                const callPrototype = scheme.functions.prototypeRegistry.lookupTable.getPtr(call.functionId) orelse {
-                    return fatal("Unknown function: {s}", .{ call.functionId });
+                const callPrototype = scheme.functions.prototypeRegistry.lookupPrototype(call.functionId) orelse {
+                    return fatal("Unknown function name for slot: {s}", .{ call.functionId });
                 };
 
                 switch (call.slot) {
@@ -241,4 +261,4 @@ pub const Target = target.Target(UserContext, ErrorType, struct {
             }
         }
     }
-});
+};

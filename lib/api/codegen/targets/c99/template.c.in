@@ -1,4 +1,22 @@
 #include <stdint.h>
-#include <stdboo.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
+// Externs
+
+uint8_t __exit__param__0;
+void __exit(void)
+{{
+    exit(__exit__param__0);
+}}
+
+// Body
 
 {[body]s}
+
+// Main
+
+int main(void)
+{{
+    __main();
+}}

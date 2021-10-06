@@ -4,6 +4,7 @@ const types = @import("../types.zig");
 const grammar = @import("../parsing/grammar.zig");
 const compiler = @import("../irgen/compiler.zig");
 const interpreter = @import("../irgen/interpreter/interpreter.zig");
+const utils = @import("../utils.zig");
 const Parser = @import("../parsing/combinators.zig").Parser;
 const ParseBuilder = @import("../parsing/parser.zig").ParseBuilder;
 const Tokenizer = @import("../parsing/tokenizer.zig").Tokenizer;
@@ -34,20 +35,10 @@ pub fn toProgramAst(arena: *std.heap.ArenaAllocator, source: []const u8) !*ast.P
 }
 
 pub fn reportSyntaxErrors(errors: []const SyntaxError) anyerror {
-
-    var buf: [256]u8 = undefined;
-    var writer = std.io.fixedBufferStream(&buf);
-
-    std.debug.print("\n\n============================================================\n", .{});
-    std.debug.print("Got parse failure with errors:\n", .{});
-
-    for (errors) |err| {
-        try err.format(writer.writer());
-        std.debug.print("  Syntax Error: {s}\n", .{ writer.getWritten() });
-        writer.reset();
-    }
-
-    std.debug.print("============================================================\n\n", .{});
+    const writer = std.io.getStdErr().writer();
+    try writer.print("\n\n", .{});
+    try utils.reportSyntaxErrors(errors, writer);
+    try writer.print("\n\n", .{});
     try std.testing.expect(false);
     unreachable;
 }
@@ -119,7 +110,7 @@ pub fn evaluateIR(allocator: *std.mem.Allocator, source: []const u8) !interprete
     const typeRegistry = types.TypeRegistry.init(interpreter.SimpleInterpreter.supportedTypes);
     defer { typeRegistry.deinit(); }
 
-    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry);
+    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry, &.{});
     defer { scheme.deinit(); }
 
     var interpreterInstance = try interpreter.SimpleInterpreter.init(allocator, &scheme);
@@ -161,7 +152,7 @@ pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: [
     const typeRegistry = types.TypeRegistry.init(testTypes);
     defer { typeRegistry.deinit(); }
 
-    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry);
+    var scheme = try compiler.compileScheme(allocator, program, &typeRegistry, &.{});
     defer { scheme.deinit(); }
 
     const targetFunction = scheme.functions.mapping.get(functionID) orelse {

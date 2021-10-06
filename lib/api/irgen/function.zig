@@ -63,8 +63,7 @@ pub const FunctionPrototype = struct {
     const Self = @This();
 
     pub fn init(allocator: *std.mem.Allocator, node: *const ast.Function, typeRegistry: *const TypeRegistry) !Self {
-        const definedReturnType = if (node.returnType) |id| typeRegistry.getType(id.name) else null;
-        const resolvedReturnType = definedReturnType orelse &types.Types.void;
+        const returnType = Utils.getReturnType(node, typeRegistry);
 
         // Parameters
         var params = std.ArrayList(Parameter).init(allocator);
@@ -88,31 +87,21 @@ pub const FunctionPrototype = struct {
         }
 
         // ID format
-        var idBuffer = try std.ArrayList(u8).initCapacity(allocator, node.identifier.name.len + 2);
-        defer { idBuffer.deinit(); }
-        try idBuffer.writer().print("{s}(", .{ node.identifier.name });
-        for (node.paramlist.parameters) |param| {
-            try idBuffer.writer().print("{s}:", .{ param.identifier.name });
-        }
-        try idBuffer.writer().print(")", .{});
+        const identifier = try Utils.functionToOwnedIdentifier(allocator, node);
+        errdefer { allocator.free(identifier); }
 
-        // Signature format
-        var sigBuffer = try std.ArrayList(u8).initCapacity(allocator, node.identifier.name.len + 6);
-        defer { sigBuffer.deinit(); }
-        try sigBuffer.writer().print("{s}(", .{ node.identifier.name });
-        for (node.paramlist.parameters) |param| {
-            try sigBuffer.writer().print("{s}:{s},", .{ param.identifier.name, param.type.name });
-        }
-        try sigBuffer.writer().print(") -> {s}", .{ resolvedReturnType.name });
+        const signature = try Utils.functionToOwnedSignature(allocator, node);
+        errdefer { allocator.free(signature); }
 
         const name = try allocator.dupe(u8, node.identifier.name);
+        errdefer { allocator.free(signanameture); }
 
         return Self {
             .allocator = allocator,
             .parameters = params.toOwnedSlice(),
-            .returnType = resolvedReturnType,
-            .identifier = idBuffer.toOwnedSlice(),
-            .signature = sigBuffer.toOwnedSlice(),
+            .returnType = returnType,
+            .identifier = identifier,
+            .signature = signature,
             .name = name,
         };
     }
@@ -303,6 +292,7 @@ pub const FunctionBody = struct {
 pub const PrototypeRegistry = struct {
     allocator: *std.mem.Allocator,
     lookupTable: std.StringHashMap(FunctionPrototype),
+    externals: std.StringHashMap(FunctionPrototype),
 
     const Self = @This();
 
@@ -310,6 +300,7 @@ pub const PrototypeRegistry = struct {
         return .{
             .allocator = allocator,
             .lookupTable = std.StringHashMap(FunctionPrototype).init(allocator),
+            .externals = std.StringHashMap(FunctionPrototype).init(allocator),
         };
     }
 
@@ -319,34 +310,22 @@ pub const PrototypeRegistry = struct {
             value.deinit();
         }
 
+        iterator = self.externals.valueIterator();
+        while (iterator.next()) |value| {
+            value.deinit();
+        }
+
         self.lookupTable.deinit();
+        self.externals.deinit();
     }
 
-    pub fn lookupCall(self: *const Self, call: *const ast.FunctionCall) !AllocatedResult {
-        var buffer = std.ArrayList(u8).init(self.allocator);
-        var writer = buffer.writer();
-        defer { buffer.deinit(); }
-
-        try writer.print("{s}(", .{ call.identifier.name });
-        for (call.arglist.arguments) |arg| {
-            try writer.print("{s}:", .{ arg.identifier.name });
-        }
-        try writer.print(")", .{});
-
-        if (self.lookupTable.getPtr(buffer.items)) |prototype| {
-            return AllocatedResult {
-                .allocator = self.allocator,
-                .result = .{
-                    .found = prototype
-                }
-            };
+    pub fn lookupPrototype(self: *const Self, identifier: []const u8) ?*const FunctionPrototype {
+        if (self.lookupTable.getPtr(identifier)) |prototype| {
+            return prototype;
+        } else if (self.externals.getPtr(identifier)) |prototype| {
+            return prototype;
         } else {
-            return AllocatedResult {
-                .allocator = self.allocator,
-                .result = .{
-                    .missing = buffer.toOwnedSlice(),
-                }
-            };
+            return null;
         }
     }
 
@@ -368,6 +347,109 @@ pub const PrototypeRegistry = struct {
     };
 };
 
+pub const Utils = struct {
+
+    pub fn partsToOwnedIdentifier(allocator: *std.mem.Allocator, name: []const u8, parameters: []const Parameter) ![]const u8 {
+        var buffer = try std.ArrayList(u8).initCapacity(allocator, name.len + 2);
+        defer { buffer.deinit(); }
+
+        try buffer.writer().print("{s}(", .{ name });
+        for (parameters) |param| {
+            try buffer.writer().print("{s}:", .{ param.name });
+        }
+        try buffer.writer().print(")", .{});
+
+        return buffer.toOwnedSlice();
+    }
+
+    pub fn partsToOwnedSignature(allocator: *std.mem.Allocator, name: []const u8, parameters: []const Parameter, returnType: *const types.Type) ![]const u8 {
+        var buffer = try std.ArrayList(u8).initCapacity(allocator, name.len + 6);
+        defer { buffer.deinit(); }
+        try buffer.writer().print("{s}(", .{ name });
+        for (parameters) |param| {
+            try buffer.writer().print("{s}:{s},", .{ param.name, param.type.name });
+        }
+        try buffer.writer().print(") -> {s}", .{ returnType.name });
+
+        return buffer.toOwnedSlice();
+    }
+
+    pub fn functionToOwnedSignature(allocator: *std.mem.Allocator, function: *const ast.Function) ![]const u8 {
+        const returnType = if (function.returnType) |t| t.name else types.Types.void.name;
+        var buffer = try std.ArrayList(u8).initCapacity(allocator, function.identifier.name.len + 6);
+        defer { buffer.deinit(); }
+        try buffer.writer().print("{s}(", .{ function.identifier.name });
+        for (function.paramlist.parameters) |param| {
+            try buffer.writer().print("{s}:{s},", .{ param.identifier.name, param.type.name });
+        }
+        try buffer.writer().print(") -> {s}", .{ returnType });
+
+        return buffer.toOwnedSlice();
+    }
+
+    pub fn functionToOwnedIdentifier(allocator: *std.mem.Allocator, function: *const ast.Function) ![]const u8 {
+        var buffer = try std.ArrayList(u8).initCapacity(allocator, function.identifier.name.len + 2);
+        defer { buffer.deinit(); }
+
+        try buffer.writer().print("{s}(", .{ function.identifier.name });
+        for (function.paramlist.parameters) |param| {
+            try buffer.writer().print("{s}:", .{ param.identifier.name });
+        }
+        try buffer.writer().print(")", .{});
+
+        return buffer.toOwnedSlice();
+    }
+
+    pub fn callToOwnedIdentifier(allocator: *std.mem.Allocator, call: *const ast.FunctionCall) ![]const u8 {
+        var buffer = std.ArrayList(u8).init(allocator);
+        defer { buffer.deinit(); }
+
+        var writer = buffer.writer();
+        defer { buffer.deinit(); }
+
+        try writer.print("{s}(", .{ call.identifier.name });
+        for (call.arglist.arguments) |arg| {
+            try writer.print("{s}:", .{ arg.identifier.name });
+        }
+        try writer.print(")", .{});
+
+        return buffer.toOwnedSlice();
+    }
+
+    pub fn getReturnType(function: *const ast.Function, typeRegistry: *const TypeRegistry) *const types.Type {
+        const definedReturnType = if (function.returnType) |id| typeRegistry.getType(id.name) else null;
+        return definedReturnType orelse &types.Types.void;
+    }
+
+    pub fn toPrototype(allocator: *std.mem.Allocator, externFn: *const ExternFunction) !FunctionPrototype {
+        const name = try allocator.dupe(u8, externFn.name);
+        errdefer { allocator.free(name); }
+
+        const parameters = try allocator.alloc(Parameter, externFn.parameters.len);
+        for (externFn.parameters) |param, i| {
+            parameters[i] = .{
+                .name = try allocator.dupe(u8, param.name), // Ugh, ignore freeing this on error for now
+                .type = param.type,
+            };
+        }
+
+        const identifier = try partsToOwnedIdentifier(allocator, name, parameters);
+        errdefer { allocator.free(identifier); }
+
+        const signature = try partsToOwnedSignature(allocator, name, parameters, externFn.returnType);
+        errdefer { allocator.free(signature); }
+
+        return FunctionPrototype {
+            .allocator = allocator,
+            .parameters = parameters,
+            .returnType = externFn.returnType,
+            .identifier = identifier,
+            .signature = signature,
+            .name = name,
+        };
+    }
+};
+
 pub const Parameter = struct {
     name: []const u8,
     type: *const types.Type,
@@ -381,6 +463,12 @@ pub const NamedSlot = struct {
 pub const TempSlot = struct {
     offset: usize,
     type: *const types.Type
+};
+
+pub const ExternFunction = struct {
+    name: []const u8,
+    parameters: []const Parameter,
+    returnType: *const types.Type,
 };
 
 test {

@@ -8,6 +8,8 @@ const Scheme = @import("scheme.zig").Scheme;
 const FunctionRegistry = @import("scheme.zig").FunctionRegistry;
 const Instruction = @import("instruction.zig").Instruction;
 
+const ExternFunction = func.ExternFunction;
+const FunctionUtils = func.Utils;
 const FunctionDefinition = func.FunctionDefinition;
 const FunctionPrototype = func.FunctionPrototype;
 const FunctionBody = func.FunctionBody;
@@ -137,7 +139,10 @@ const SlotTypePair = struct {
     type: *const types.Type,
 };
 
-pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program, typeRegistry: *const TypeRegistry) !Scheme {
+pub fn compileScheme(allocator: *std.mem.Allocator,
+                     program: *const ast.Program,
+                     typeRegistry: *const TypeRegistry,
+                     externs: []const ExternFunction) !Scheme {
 
     var prototypeRegistry = PrototypeRegistry.init(allocator);
     errdefer {
@@ -158,6 +163,11 @@ pub fn compileScheme(allocator: *std.mem.Allocator, program: *const ast.Program,
         errdefer { prototype.deinit(); }
 
         try prototypeRegistry.lookupTable.put(prototype.identifier, prototype);
+    }
+
+    for (externs) |e| {
+        const prototype = try FunctionUtils.toPrototype(allocator, &e);
+        try prototypeRegistry.externals.put(prototype.identifier, prototype);
     }
 
     for (program.functions) |function| {
@@ -284,14 +294,11 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
 
 fn compileFunctionCall(call: *const ast.FunctionCall, builder: *InstructionSetBuilder, context: *Context) SystemError!?SlotTypePair {
 
-    const functionLookup = try context.prototypeRegistry.lookupCall(call);
-    defer { functionLookup.deinit(); }
+    const functionIdentifier = try FunctionUtils.callToOwnedIdentifier(context.allocator, call);
+    defer { context.allocator.free(functionIdentifier); }
 
-    const functionPrototype = switch(functionLookup.result) {
-        .found => |prototype| prototype,
-        .missing => |id| {
-            return errors.fatal("Function not found: {s}", .{ id });
-        },
+    const functionPrototype = context.prototypeRegistry.lookupPrototype(functionIdentifier) orelse {
+        return errors.fatal("Function not found: {s}", .{ functionIdentifier });
     };
 
     // Move expressions into temp slots first, and _then_ move them into param slots
@@ -482,6 +489,6 @@ test {
     defer { arena.deinit(); }
     const program = try utils.toProgramAst(&arena, source);
 
-    var scheme = try compileScheme(allocator, program, &typeRegistry);
+    var scheme = try compileScheme(allocator, program, &typeRegistry, &.{});
     defer { scheme.deinit(); }
 }
