@@ -1,3 +1,0 @@
-fn main() {
-    exit(value: 0);
-}

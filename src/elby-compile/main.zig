@@ -91,7 +91,8 @@ pub fn main() anyerror!void {
                         return;
                     };
 
-                    try compileWithTarget(elby.targets.c, allocator, sourceFile, &options);
+                    const exitStatus = try compileWithTarget(elby.targets.c, allocator, sourceFile, &options);
+                    std.os.exit(exitStatus);
                 },
             } else if (conf.arguments.target.len == 0) {
                 try fatal("Target must be specified.\n", .{});
@@ -100,7 +101,7 @@ pub fn main() anyerror!void {
             } else {
                 try fatal("Unknown target: '{s}'.\n", .{ conf.arguments.target });
                 try errWriter.print("{s}\n", .{ ArgumentParser.helpText });
-                std.os.exit(1);
+                std.os.exit(3);
             }
         },
         .fail  => |err| {
@@ -112,13 +113,13 @@ pub fn main() anyerror!void {
     }
 }
 
-fn compileWithTarget(comptime TargetType: type, allocator: *std.mem.Allocator, filename: []const u8, options: *TargetType.OptionsType) !void {
+fn compileWithTarget(comptime TargetType: type, allocator: *std.mem.Allocator, filename: []const u8, options: *TargetType.OptionsType) !u8 {
     var moduleLoader = elby.ModuleResolver.init(allocator);
     defer { moduleLoader.deinit(); }
 
     const absModulePath = std.fs.cwd().realpathAlloc(allocator, filename) catch |err| {
         try fatal("Unable to open module: {s} ({any}).", .{ filename, err });
-        return;
+        return 2;
     };
 
     defer { allocator.free(absModulePath); }
@@ -134,10 +135,13 @@ fn compileWithTarget(comptime TargetType: type, allocator: *std.mem.Allocator, f
     const result = try pipeline.compileModule(module, options);
     switch (result) {
         .syntaxError => |errs| {
-            return elby.utils.reportSyntaxErrors(errs, std.io.getStdErr().writer());
+            try elby.utils.reportSyntaxErrors(errs, std.io.getStdErr().writer());
+            return 1;
         },
         else => {}
     }
+
+    return 0;
 }
 
 fn getCTargetOptions(conf: ArgumentParser.Parse.Success) !elby.targets.c.OptionsType {

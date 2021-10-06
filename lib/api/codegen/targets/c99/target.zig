@@ -137,7 +137,9 @@ pub const Generator = struct {
                     const destType = try function.getSlotType(&load.dest, &scheme.functions.prototypeRegistry);
                     try writer.print("\t", .{});
                     try writeName(scheme, writer, &load.dest, function);
-                    try writer.print(" = ({s})", .{ destType.name });
+                    try writer.print(" = (", .{});
+                    try writeType(writer, destType);
+                    try writer.print(")", .{});
                     try writeNumeric(scheme, writer, &load.value);
                     try writer.print(";\n", .{});
                 },
@@ -186,6 +188,22 @@ pub const Generator = struct {
                 }
             }
         }
+
+        // Labels that go right at the end of the function. Ex:
+        // fn (...) {
+        //   if (false) {
+        //   }
+        // <label>:
+        //}
+        if (function.body.labelLookup.get(function.body.instructions.len)) |labels| {
+            for (labels.items) |label| {
+                try writer.print("{s}:\n", .{ label });
+            }
+        }
+
+        // Need a statement after a label, this is harmless even if there
+        // is no label
+        try writer.print("\t;", .{});
     }
 
     fn writeBinOp(scheme: *const Scheme, writer: anytype, dest: *const Slot, lhs: *const Slot, rhs: *const Slot, op: []const u8, function: *const FunctionDefinition) !void {
