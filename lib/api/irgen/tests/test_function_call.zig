@@ -5,11 +5,11 @@ const utils = @import("../../testing/utils.zig");
 test "function return ir generation" {
 
     const source =
-        \\fn main() -> int {
+        \\fn main() -> Int {
         \\  return add(a: 1, b: 2);
         \\}
         \\
-        \\fn add(a: int, b: int) -> int {
+        \\fn add(a: Int, b: Int) -> Int {
         \\  return a + b;
         \\}
         ;
@@ -21,7 +21,7 @@ test "function return ir generation" {
 test "function void return" {
 
     const source =
-        \\fn test(a: int, b: int) {
+        \\fn test(a: Int, b: Int) {
         \\}
         ;
 
@@ -36,11 +36,11 @@ test "function void return" {
 test "function param smashing" {
 
     const source =
-        \\fn main() -> int {
+        \\fn main() -> Int {
         \\  return foo(a: 1, b: foo(a: 2, b: 3));
         \\}
         \\
-        \\fn foo(a: int, b: int) -> int {
+        \\fn foo(a: Int, b: Int) -> Int {
         \\  return a + b;
         \\}
         ;

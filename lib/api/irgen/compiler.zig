@@ -244,7 +244,7 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
         .ret => |expr| {
             const returnType = context.currentPrototype().returnType;
             if ((returnType.size() > 0) != (expr != null)) {
-                return errors.fatal("Unexpected return type expression for type: {s}", .{ returnType.name });
+                return errors.fatal("Unexpected return type expression for type: {s} ({s})", .{ returnType.name, context.currentPrototype().signature });
             }
 
             if (returnType.size() > 0 and expr != null) {
@@ -305,6 +305,27 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
             }
 
             builder.updateLabel(endLabel, 0);
+        },
+        .whileLoop => |whileNode| {
+            const loopStart = try builder.addLabel(0);
+            const loopBreak = try builder.addLabel(0);
+            const exprInfo = try compileExpression(whileNode.expr, &types.Types.boolean, builder, context);
+            try builder.addInstruction(.{
+                .goto_unless = .{
+                    .slot = exprInfo.slot,
+                    .label = loopBreak,
+                }
+            });
+
+            try compileBlock(whileNode.statements, builder, context);
+
+            try builder.addInstruction(.{
+                .goto = .{
+                    .label = loopStart,
+                }
+            });
+
+            builder.updateLabel(loopBreak, 0);
         }
     }
 }
@@ -417,6 +438,23 @@ fn compileExpression(expr: *const ast.Expression, typeHint: *const types.Type, b
             };
         },
         .identifier => |identifier| {
+
+            // Lookup enumerable types like bools
+            if (context.typeRegistry.lookupValue(identifier.name)) |result| {
+                const slot = try context.slotAllocator.allocateTemporarySlot(result.type);
+                try builder.addInstruction(.{
+                    .load = .{
+                        .dest = slot,
+                        .value = result.value,
+                    }
+                });
+
+                return SlotTypePair {
+                    .slot = slot,
+                    .type = result.type,
+                };
+            }
+
             const slot = try context.slotAllocator.lookupNamedSlot(identifier.name);
             const idType = try context.slotAllocator.lookupNamedType(identifier.name);
             return SlotTypePair {

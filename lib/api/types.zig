@@ -127,6 +127,33 @@ pub const TypeRegistry = struct {
 
         return null;
     }
+
+    pub const LookupResult = struct {
+        type: *const Type,
+        value: Numeric,
+    };
+
+    pub fn lookupValue(self: *const Self, name: []const u8) ?LookupResult {
+        for (self.types) |*t| {
+            switch (t.value) {
+                .enumerable => |e| {
+                    for (e.values) |v, i| {
+                        if (std.mem.eql(u8, v, name)) {
+                            return LookupResult {
+                                .type = t,
+                                .value = .{
+                                    .int = @intCast(IntType, i),
+                                }
+                            };
+                        }
+                    }
+                },
+                else => {},
+            }
+        }
+
+        return null;
+    }
 };
 
 /// Types that get included for all targets

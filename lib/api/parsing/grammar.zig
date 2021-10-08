@@ -374,12 +374,42 @@ pub const IfChain = Rule(*ast.IfChain, struct {
     }
 });
 
+pub const While = Rule(*ast.WhileLoop, struct {
+    pub const parser = mapAlloc(WhileParse, ast.WhileLoop, mapWhileLoop, sequence(WhileParse, "while loop", &.{
+        .whilekwd = token(.kwd_while),
+        .lparen = token(.left_paren),
+        .expression = Expression.parser,
+        .rparen = token(.right_paren),
+        .lbrace = token(.left_brace),
+        .statements = atLeast(*ast.Statement, 0, "statements", Statement.parser),
+        .rbrace = token(.right_brace),
+    }));
+
+    const WhileParse = struct {
+        whilekwd: void,
+        lparen: void,
+        expression: *ast.Expression,
+        rparen: void,
+        lbrace: void,
+        statements: []const *ast.Statement,
+        rbrace: void,
+    };
+
+    fn mapWhileLoop(from: WhileParse) ast.WhileLoop {
+        return .{
+            .expr = from.expression,
+            .statements = from.statements,
+        };
+    }
+});
+
 pub const Statement = Rule(*ast.Statement, struct {
     pub const parser = first(*ast.Statement, "statement", &.{
         mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Definition.parser),
         mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCallStatement.parser),
         mapAlloc(?*ast.Expression, ast.Statement, mapReturn, ReturnStatement.parser),
         mapAlloc(*ast.IfChain, ast.Statement, mapIfChain, IfChain.parser),
+        mapAlloc(*ast.WhileLoop, ast.Statement, mapWhileLoop, While.parser),
     });
 
     fn mapAssignment(from: *ast.Assignment) ast.Statement {
@@ -403,6 +433,12 @@ pub const Statement = Rule(*ast.Statement, struct {
     fn mapIfChain(from: *ast.IfChain) ast.Statement {
         return .{
             .ifchain = from,
+        };
+    }
+
+    fn mapWhileLoop(from: *ast.WhileLoop) ast.Statement {
+        return .{
+            .whileLoop = from,
         };
     }
 });

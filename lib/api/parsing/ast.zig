@@ -71,11 +71,17 @@ pub const IfChain = struct {
     next: ?ElseIf,
 };
 
+pub const WhileLoop = struct {
+    expr: *const Expression,
+    statements: []const *const Statement,
+};
+
 pub const Statement = union(enum) {
     assignment: *const Assignment,
     call: *const FunctionCall,
     ret: ?*const Expression,
     ifchain: *const IfChain,
+    whileLoop: *const WhileLoop,
 };
 
 pub const Parameter = struct {

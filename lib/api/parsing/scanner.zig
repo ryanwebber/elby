@@ -33,6 +33,7 @@ pub const Scanner = struct {
             .{ "if", .kwd_if },
             .{ "fn", .kwd_fn },
             .{ "return", .kwd_return },
+            .{ "while", .kwd_while },
         });
 
         pub fn asID(name: []const u8) ?Token.Value {

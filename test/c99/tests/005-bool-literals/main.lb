@@ -1,0 +1,8 @@
+fn main() {
+    let x: Bool = true;
+    if (x) {
+        exit(value: 0);
+    } else {
+        exit(value: 1);
+    }
+}

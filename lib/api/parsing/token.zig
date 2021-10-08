@@ -24,6 +24,7 @@ pub const Token = struct {
         kwd_if,
         kwd_let,
         kwd_return,
+        kwd_while,
         left_brace,
         left_paren,
         minus,

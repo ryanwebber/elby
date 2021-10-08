@@ -22,7 +22,7 @@ pub const SimpleInterpreter = struct {
 
     pub const supportedTypes: []const types.Type = &.{
         .{
-            .name = "int",
+            .name = "Int",
             .value = .{
                 .numeric = .{
                     .type = .int,
@@ -30,6 +30,8 @@ pub const SimpleInterpreter = struct {
                 }
             }
         },
+        types.Types.boolean,
+        types.Types.void,
     };
 
     pub fn init(allocator: *std.mem.Allocator, scheme: *const Scheme,) !Self {

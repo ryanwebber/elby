@@ -17,19 +17,6 @@ const Error = error {
     ParseError, FunctionNotFound
 };
 
-const testTypes: []const types.Type = &.{
-    types.Types.void,
-    .{
-        .name = "int",
-        .value = .{
-            .numeric = .{
-                .type = .int,
-                .size = 1,
-            }
-        }
-    },
-};
-
 pub fn toProgramAst(arena: *std.heap.ArenaAllocator, source: []const u8) !*ast.Program {
     return toOwnedAst(*ast.Program, grammar.parser, arena, source);
 }
@@ -126,7 +113,7 @@ pub fn dumpIR(allocator: *std.mem.Allocator, source: []const u8, writer: anytype
     const program = try toProgramAst(&arena, source);
 
 
-    const typeRegistry = types.TypeRegistry.init(testTypes);
+    const typeRegistry = types.TypeRegistry.init(interpreter.SimpleInterpreter.supportedTypes);
     defer { typeRegistry.deinit(); }
 
     var scheme = try compiler.compileScheme(allocator, program, &typeRegistry);
@@ -149,7 +136,7 @@ pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: [
     const program = try toProgramAst(&arena, source);
 
 
-    const typeRegistry = types.TypeRegistry.init(testTypes);
+    const typeRegistry = types.TypeRegistry.init(interpreter.SimpleInterpreter.supportedTypes);
     defer { typeRegistry.deinit(); }
 
     var scheme = try compiler.compileScheme(allocator, program, &typeRegistry, &.{});
