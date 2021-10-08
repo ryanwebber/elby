@@ -13,6 +13,10 @@ test:
 	zig build test
 	@PATH=$(BIN_DIR):$(PATH) ; make -C test/c99 test
 
+test-inspect:
+	zig build test
+	@PATH=$(BIN_DIR):$(PATH) ; make -C test/c99 test TMPDIR=$(PWD)/.test-out
+
 test-docker: build
 	$(DOCKER) build -t elby/base -f Dockerfile
 	$(DOCKER) build -t elby/tests/c -f test/c99/Dockerfile

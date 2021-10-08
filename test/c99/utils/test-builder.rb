@@ -1,5 +1,6 @@
 require 'tmpdir'
 require 'open3'
+require 'fileutils'
 
 class TestBuilder
 
@@ -32,7 +33,9 @@ class TestBuilder
     end
 
     def withTmpDir()
-        dir = Dir.mktmpdir("test_#{@name}_", ENV["ELBY_TEMP_DIR"] || "/tmp")
+        parentDir = ENV["ELBY_TEMP_DIR"] || "/tmp"
+        FileUtils.mkdir_p(parentDir)
+        dir = Dir.mktmpdir("test_#{@name}_", parentDir)
         yield dir
     end
 end

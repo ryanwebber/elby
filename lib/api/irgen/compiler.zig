@@ -132,6 +132,18 @@ pub const SlotAllocator = struct {
 
         return errors.fatal("Unknown named slot: {s}", .{ name });
     }
+
+    pub fn lookupNamedType(self: *const Self, name: []const u8) !*const types.Type {
+        if (self.paramSlots.getPtr(name)) |namedSlot| {
+            return namedSlot.type;
+        }
+
+        if (self.localSlots.getPtr(name)) |namedSlot| {
+            return namedSlot.type;
+        }
+
+        return errors.fatal("Unknown named slot: {s}", .{ name });
+    }
 };
 
 const SlotTypePair = struct {
@@ -236,12 +248,12 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
             }
 
             if (returnType.size() > 0 and expr != null) {
-                const retvalSlot = try compileExpression(expr.?, returnType, builder, context);
+                const retvalInfo = try compileExpression(expr.?, returnType, builder, context);
                 try builder.addInstruction(.{
                     .move = .{
                         .src = .{
                             .offset = 0,
-                            .slot = retvalSlot,
+                            .slot = retvalInfo.slot,
                         },
                         .dest = .{
                             .offset = 0,
@@ -257,12 +269,12 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
             const endLabel = try builder.addLabel(0);
             var nextNode: ?*const ast.IfChain = ifnode;
             while (nextNode) |currentNode| {
-                const exprSlot = try compileExpression(currentNode.expr, &types.Types.boolean, builder, context);
+                const exprInfo = try compileExpression(currentNode.expr, &types.Types.boolean, builder, context);
                 const nextCondLabel = try builder.addLabel(0);
 
                 try builder.addInstruction(.{
                     .if_not_goto = .{
-                        .slot = exprSlot,
+                        .slot = exprInfo.slot,
                         .label = nextCondLabel,
                     }
                 });
@@ -313,7 +325,8 @@ fn compileFunctionCall(call: *const ast.FunctionCall, builder: *InstructionSetBu
 
     for (call.arglist.arguments) |arg, i| {
         const targetType = functionPrototype.parameters[i].type;
-        argSlots[i] = try compileExpression(arg.expression, targetType, builder, context);
+        const exprInfo = try compileExpression(arg.expression, targetType, builder, context);
+        argSlots[i] = exprInfo.slot;
     }
 
     for (call.arglist.arguments) |_, i| {
@@ -367,12 +380,12 @@ fn compileAssignment(assignment: *const ast.Assignment, builder: *InstructionSet
         return errors.fatal("Unknown type: {s}", .{ typeName });
     };
 
-    const exprSlot = try compileExpression(assignment.expression, targetType, builder, context);
+    const exprInfo = try compileExpression(assignment.expression, targetType, builder, context);
     const destSlot = try context.slotAllocator.allocateLocalSlot(assignment.identifier.name, targetType);
     try builder.addInstruction(.{
         .move = .{
             .src = .{
-                .slot = exprSlot,
+                .slot = exprInfo.slot,
                 .offset = 0
             },
             .dest = .{
@@ -383,10 +396,14 @@ fn compileAssignment(assignment: *const ast.Assignment, builder: *InstructionSet
     });
 }
 
-fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type, builder: *InstructionSetBuilder, context: *Context) SystemError!Slot {
+fn compileExpression(expr: *const ast.Expression, typeHint: *const types.Type, builder: *InstructionSetBuilder, context: *Context) SystemError!SlotTypePair {
     switch (expr.*) {
         .number_literal => |node| {
-            const slot = try context.slotAllocator.allocateTemporarySlot(targetType);
+            const inferredType = if (typeHint.value == .numeric) typeHint else {
+                return errors.fatal("Unable to infer type of numeric in a non-numeric expression.", .{});
+            };
+
+            const slot = try context.slotAllocator.allocateTemporarySlot(inferredType);
             try builder.addInstruction(.{
                 .load = .{
                     .dest = slot,
@@ -394,15 +411,31 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
                 }
             });
 
-            return slot;
+            return SlotTypePair {
+                .slot = slot,
+                .type = inferredType
+            };
         },
         .identifier => |identifier| {
-            return try context.slotAllocator.lookupNamedSlot(identifier.name);
+            const slot = try context.slotAllocator.lookupNamedSlot(identifier.name);
+            const idType = try context.slotAllocator.lookupNamedType(identifier.name);
+            return SlotTypePair {
+                .slot = slot,
+                .type = idType,
+            };
         },
         .binary_expression => |node| {
-            const lhs = try compileExpression(node.lhs, targetType, builder, context);
-            const rhs = try compileExpression(node.rhs, targetType, builder, context);
-            const slot = try context.slotAllocator.allocateTemporarySlot(targetType);
+            const lhsPair = try compileExpression(node.lhs, typeHint, builder, context);
+            const rhsPair = try compileExpression(node.rhs, lhsPair.type, builder, context);
+
+            const lhs = lhsPair.slot;
+            const rhs = rhsPair.slot;
+
+            const resolvedExpressionType = resolveExpressionForOperator(node.op, lhsPair.type) orelse {
+                return errors.fatal("Unable to infer type for binary expression.", .{});
+            };
+
+            const slot = try context.slotAllocator.allocateTemporarySlot(resolvedExpressionType);
             const instruction: Instruction = switch (node.op) {
                 .op_plus => .{
                     .add = .{
@@ -443,7 +476,10 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
 
             try builder.addInstruction(instruction);
 
-            return slot;
+            return SlotTypePair {
+                .slot = slot,
+                .type = resolvedExpressionType,
+            };
         },
         .function_call => |call| {
             if (try compileFunctionCall(call, builder, context)) |returnInfo| {
@@ -461,12 +497,30 @@ fn compileExpression(expr: *const ast.Expression, targetType: *const types.Type,
                     }
                 });
 
-                return destSlot;
+                return SlotTypePair {
+                    .slot = destSlot,
+                    .type = returnInfo.type,
+                };
             } else {
                 return errors.fatal("Return type not usable as expression (call to {s})", .{ call.identifier.name });
             }
         }
     }
+}
+
+fn resolveExpressionForOperator(operator: ast.BinOp, hint: *const types.Type) ?*const types.Type {
+    switch (operator) {
+        .op_plus, .op_minus, .op_mul, .op_div => {
+            if (hint.value == .numeric) {
+                return hint;
+            }
+        },
+        .op_equality => {
+            return &types.Types.boolean;
+        },
+    }
+
+    return null;
 }
 
 test {

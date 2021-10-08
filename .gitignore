@@ -1,9 +1,9 @@
 zig-cache/
 zig-out/
+.test-out/
 /release/
 /debug/
 /build/
 /build-*/
 
 .DS_Store
-
