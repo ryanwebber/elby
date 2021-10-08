@@ -208,6 +208,11 @@ pub fn compileScheme(allocator: *std.mem.Allocator,
 
 pub fn compileFunction(function: *const ast.Function, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
     try compileBlock(function.body, builder, context);
+
+    // RET here is for situations where there's a label pointing
+    // to the end of the function. We need a ret to make sure generators
+    // don't simply fall through to the next function body
+    try builder.addInstruction(Instruction.ret);
 }
 
 fn compileBlock(statements: []const *const ast.Statement, builder: *InstructionSetBuilder, context: *Context) SystemError!void {

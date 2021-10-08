@@ -1,0 +1,23 @@
+fn main() {
+    let x: uint8_t = 1;
+    let y: uint8_t = 3;
+    let z: uint8_t = add(a: x, b: y) * 3;
+    let q: uint8_t = doubleIf12(a: z);
+    if (q == 24) {
+        exit(value: 0);
+    } else {
+        exit(value: q);
+    }
+}
+
+fn add(a: uint8_t, b: uint8_t) -> uint8_t {
+    return a + b;
+}
+
+fn doubleIf12(a: uint8_t) -> uint8_t {
+    if (a == 12) {
+        return a * 2;
+    } else {
+        return a;
+    }
+}

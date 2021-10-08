@@ -13,10 +13,27 @@ const Target = @import("codegen/target.zig").Target;
 
 const SystemError = errors.SystemError;
 
-pub const PipelineResult = union(enum) {
-    success,
-    syntaxError: []const SyntaxError,
-};
+pub fn StageResult(comptime ValueType: type) type {
+    return union(enum) {
+        ok: ValueType,
+        syntaxError: []const SyntaxError,
+
+        const Self = @This();
+
+        fn erase(self: *const Self) StageResult(void) {
+            switch (self.*) {
+                .ok => {
+                    return StageResult(void).ok;
+                },
+                .syntaxError => |errs| {
+                    return StageResult(void) {
+                        .syntaxError = errs,
+                    };
+                }
+            }
+        }
+    };
+}
 
 pub fn Pipeline(comptime TargetType: type) type {
     return struct {
@@ -36,18 +53,14 @@ pub fn Pipeline(comptime TargetType: type) type {
             self.arena.deinit();
         }
 
-        pub fn compileModule(self: *Self, module: *const Module, options: *TargetType.OptionsType) !PipelineResult {
-            var target = TargetType.init(self.context);
-            defer { target.deinit(); }
-
+        pub fn compile(self: *Self, module: *const Module) !StageResult(Scheme) {
             var allocator = &self.arena.allocator;
-
             var tokenizer = try Tokenizer.tokenize(allocator, module.source);
             const parser = parsing.ProgramParser;
             const parse = try parser.parse(&self.arena, &tokenizer.iterator());
             const program = switch (parse.result) {
                 .fail => |errors| {
-                    return PipelineResult {
+                    return StageResult(Scheme) {
                         .syntaxError = errors,
                     };
                 },
@@ -55,11 +68,31 @@ pub fn Pipeline(comptime TargetType: type) type {
             };
 
             const typeRegistry = types.TypeRegistry.init(TargetType.config.types);
-            var scheme = try ir.compileScheme(allocator, program, &typeRegistry, TargetType.config.externs);
-            defer { scheme.deinit(); }
+            const scheme = try ir.compileScheme(allocator, program, &typeRegistry, TargetType.config.externs);
+            return StageResult(Scheme) {
+                .ok = scheme,
+            };
+        }
 
-            try target.generator.compileScheme(&scheme, options);
-            return PipelineResult.success;
+        pub fn generate(self: *Self, scheme: *const Scheme, options: *TargetType.OptionsType) !StageResult(void) {
+            var target = TargetType.init(self.context);
+            defer { target.deinit(); }
+
+            try target.generator.compileScheme(scheme, options);
+            return StageResult(void).ok;
+        }
+
+        pub fn compileAndGenerate(self: *Self, module: *const Module, options: *TargetType.OptionsType) !StageResult(void) {
+            var compilationResult = try self.compile(module);
+            switch (compilationResult) {
+                .ok => |*scheme| {
+                    defer { scheme.deinit(); }
+                    return try self.generate(scheme, options);
+                },
+                else => {}
+            }
+
+            return compilationResult.erase();
         }
     };
 }
@@ -136,7 +169,7 @@ test {
     defer { pipeline.deinit(); }
 
     var options: TestTarget.OptionsType = .{};
-    const result = try pipeline.compileModule(&module, &options);
+    const result = try pipeline.compileAndGenerate(&module, &options);
     switch (result) {
         .syntaxError => |errs| {
             return @import("testing/utils.zig").reportSyntaxErrors(errs);
@@ -144,5 +177,5 @@ test {
         else => {}
     }
 
-    try std.testing.expectEqual(PipelineResult.success, result);
+    try std.testing.expectEqual(StageResult(void).ok, result);
 }

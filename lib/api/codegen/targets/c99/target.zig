@@ -79,7 +79,7 @@ pub const Generator = struct {
 
     pub fn writeScheme(writer: anytype, scheme: *const Scheme) !void {
         for (scheme.functions.definitions) |definition| {
-            try writeFunctionParameters(scheme, writer, definition);
+            try writeFunctionHeader(scheme, writer, definition);
             try writer.print("void ", .{});
             try writeMangledName(scheme, writer, &definition.prototype);
             try writer.print("();\n\n", .{});
@@ -99,12 +99,19 @@ pub const Generator = struct {
         }
     }
 
-    fn writeFunctionParameters(scheme: *const Scheme, writer: anytype, definition: *const FunctionDefinition) !void {
+    fn writeFunctionHeader(scheme: *const Scheme, writer: anytype, definition: *const FunctionDefinition) !void {
         for (definition.layout.params) |param, i| {
             try writeType(writer, param.type);
             try writer.print(" ", .{});
             try writeMangledName(scheme, writer, &definition.prototype);
             try writer.print("__param__{d};\n", .{ i });
+        }
+
+        if (definition.prototype.returnType.size() > 0) {
+            try writeType(writer, definition.prototype.returnType);
+            try writer.print(" ", .{});
+            try writeMangledName(scheme, writer, &definition.prototype);
+            try writer.print("__retval;\n", .{});
         }
     }
 
@@ -154,13 +161,13 @@ pub const Generator = struct {
                     try writeBinOp(scheme, writer, &add.dest, &add.lhs, &add.rhs, "+", function);
                 },
                 .sub => |sub| {
-                    try writeBinOp(scheme, writer, &sub.dest, &sub.lhs, &sub.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &sub.dest, &sub.lhs, &sub.rhs, "-", function);
                 },
                 .mul => |mul| {
-                    try writeBinOp(scheme, writer, &mul.dest, &mul.lhs, &mul.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &mul.dest, &mul.lhs, &mul.rhs, "*", function);
                 },
                 .div => |div| {
-                    try writeBinOp(scheme, writer, &div.dest, &div.lhs, &div.rhs, "+", function);
+                    try writeBinOp(scheme, writer, &div.dest, &div.lhs, &div.rhs, "/", function);
                 },
                 .cmp_eq => |op| {
                     try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "==", function);
@@ -186,18 +193,6 @@ pub const Generator = struct {
                 .ret => {
                     try writer.print("\treturn;\n", .{});
                 }
-            }
-        }
-
-        // Labels that go right at the end of the function. Ex:
-        // fn (...) {
-        //   if (false) {
-        //   }
-        // <label>:
-        //}
-        if (function.body.labelLookup.get(function.body.instructions.len)) |labels| {
-            for (labels.items) |label| {
-                try writer.print("{s}:\n", .{ label });
             }
         }
 
@@ -247,8 +242,8 @@ pub const Generator = struct {
                 try writer.print("__temp_{d}", .{ s.index });
             },
             .retval => {
-                try writer.print("__ret_", .{});
                 try writeMangledName(scheme, writer, &prototype);
+                try writer.print("__retval", .{});
             },
             .call => |call| {
                 const callPrototype = scheme.functions.prototypeRegistry.lookupPrototype(call.functionId) orelse {

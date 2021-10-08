@@ -132,9 +132,10 @@ fn compileWithTarget(comptime TargetType: type, allocator: *std.mem.Allocator, f
     var pipeline = elby.Pipeline(TargetType).init(allocator, &context);
     defer { pipeline.deinit(); }
 
-    const result = try pipeline.compileModule(module, options);
+    const result = try pipeline.compileAndGenerate(module, options);
     switch (result) {
         .syntaxError => |errs| {
+            defer { allocator.free(errs); }
             try elby.utils.reportSyntaxErrors(errs, std.io.getStdErr().writer());
             return 1;
         },

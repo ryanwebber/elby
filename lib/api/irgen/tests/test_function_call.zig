@@ -22,7 +22,6 @@ test "function void return" {
 
     const source =
         \\fn test(a: int, b: int) {
-        \\  return;
         \\}
         ;
 
