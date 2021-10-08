@@ -62,3 +62,21 @@ test "bool ir generation else" {
     const result = try utils.evaluateIR(std.testing.allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
+
+
+test "bool inequality" {
+
+    const source =
+        \\fn main() -> int {
+        \\  let x: int = 1;
+        \\  if (x != 2) {
+        \\    return 3;
+        \\  } else {
+        \\    return 4;
+        \\  }
+        \\}
+        ;
+
+    const result = try utils.evaluateIR(std.testing.allocator, source);
+    try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
+}

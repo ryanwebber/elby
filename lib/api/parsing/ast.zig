@@ -7,6 +7,7 @@ pub const BinOp = enum {
     op_mul,
     op_div,
     op_equality,
+    op_inequality,
 
     // For testing
     pub fn jsonStringify(self: BinOp, _: anytype, out_stream: anytype) !void {

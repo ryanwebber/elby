@@ -176,6 +176,16 @@ pub const Scanner = struct {
                             token.type = .comma;
                             break;
                         },
+                        '!' => {
+                            state = .{
+                                .capture_lookahead = .{
+                                    .fallback = .bang,
+                                    .possibles = &.{
+                                        .{ .char = '=', .token = Token.Value.inequality },
+                                    }
+                                }
+                            };
+                        },
                         '(' => {
                             token.type = .left_paren;
                             break;

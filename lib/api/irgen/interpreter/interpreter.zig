@@ -112,6 +112,9 @@ pub const SimpleInterpreter = struct {
                 .cmp_eq => |op| {
                     (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* == (try fnData.getPtr(&op.rhs)).*);
                 },
+                .cmp_neq => |op| {
+                    (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* != (try fnData.getPtr(&op.rhs)).*);
+                },
                 .call => |call| {
                     const callFunction = self.scheme.functions.mapping.get(call.functionId) orelse {
                         return InterpreterError.FunctionNotFound;
@@ -126,7 +129,7 @@ pub const SimpleInterpreter = struct {
 
                     pc = offset - 1;
                 },
-                .if_not_goto => |op| {
+                .goto_unless => |op| {
                     const slotValue = (try fnData.getPtr(&op.slot)).*;
                     if (slotValue == 0) {
                         const offset = definition.body.labels.get(op.label) orelse {

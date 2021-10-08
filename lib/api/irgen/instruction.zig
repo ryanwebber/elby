@@ -57,9 +57,8 @@ const ConditionalGoto = struct {
     label: []const u8,
 
     pub fn format(self: *const ConditionalGoto, writer: anytype) !void {
-        try writer.print("if not ", .{});
+        try writer.print("goto :{s} unless ", .{ self.label });
         try self.slot.format(writer);
-        try writer.print(" goto :{s}", .{ self.label });
     }
 };
 
@@ -71,9 +70,10 @@ pub const Instruction = union(enum) {
     mul: BinOp,
     div: BinOp,
     cmp_eq: BinOp,
+    cmp_neq: BinOp,
     call: CallOp,
     goto: struct { label: []const u8 },
-    if_not_goto: ConditionalGoto,
+    goto_unless: ConditionalGoto,
     ret,
 
     // return
@@ -108,13 +108,16 @@ pub const Instruction = union(enum) {
             .cmp_eq => |op| {
                 try op.format(writer, "==");
             },
+            .cmp_neq => |op| {
+                try op.format(writer, "!=");
+            },
             .call => |call| {
                 try call.format(writer);
             },
             .goto => |op| {
                 try writer.print("goto :{s}", .{ op.label });
             },
-            .if_not_goto => |op| {
+            .goto_unless => |op| {
                 try op.format(writer);
             },
             .ret => {

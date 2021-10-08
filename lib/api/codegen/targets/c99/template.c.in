@@ -10,6 +10,11 @@ void __exit(void)
     exit(__exit__param__0);
 }}
 
+// Typedefs
+
+#define Bool bool
+#define Void void
+
 // Body
 
 {[body]s}

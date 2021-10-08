@@ -273,7 +273,7 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
                 const nextCondLabel = try builder.addLabel(0);
 
                 try builder.addInstruction(.{
-                    .if_not_goto = .{
+                    .goto_unless = .{
                         .slot = exprInfo.slot,
                         .label = nextCondLabel,
                     }
@@ -472,6 +472,13 @@ fn compileExpression(expr: *const ast.Expression, typeHint: *const types.Type, b
                         .rhs = rhs
                     }
                 },
+                .op_inequality => .{
+                    .cmp_neq = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
             };
 
             try builder.addInstruction(instruction);
@@ -515,7 +522,7 @@ fn resolveExpressionForOperator(operator: ast.BinOp, hint: *const types.Type) ?*
                 return hint;
             }
         },
-        .op_equality => {
+        .op_equality, .op_inequality => {
             return &types.Types.boolean;
         },
     }

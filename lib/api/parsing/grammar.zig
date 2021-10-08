@@ -144,7 +144,7 @@ pub const Factor = Rule(*ast.Expression, struct {
 
 pub const Term = Rule(*ast.Expression, struct {
     // term ::= factor { ( * | / ) factor } *
-    pub const parser = associativeBinOpParser("multaplicative expression", Factor.parser, first(ast.BinOp, "'*' or '/'", &.{
+    pub const parser = associativeBinOpParser("multaplicative expression", Factor.parser, first(ast.BinOp, "product", &.{
         id(.star, ast.BinOp.op_mul),
         id(.fslash, ast.BinOp.op_div)
     }));
@@ -152,7 +152,7 @@ pub const Term = Rule(*ast.Expression, struct {
 
 pub const Addative = Rule(*ast.Expression, struct {
     // addative ::= term { ( + | - ) term } *
-    pub const parser = associativeBinOpParser("addative expression", Term.parser, first(ast.BinOp, "'+' or '-'", &.{
+    pub const parser = associativeBinOpParser("addative expression", Term.parser, first(ast.BinOp, "addition", &.{
         id(.plus, ast.BinOp.op_plus),
         id(.minus, ast.BinOp.op_minus)
     }));
@@ -160,7 +160,10 @@ pub const Addative = Rule(*ast.Expression, struct {
 
 pub const Equality = Rule(*ast.Expression, struct {
     // equality ::= addative { ( + | - ) addative } *
-    pub const parser = associativeBinOpParser("equality expression", Addative.parser, id(.equality, ast.BinOp.op_equality));
+    pub const parser = associativeBinOpParser("equality expression", Addative.parser, first(ast.BinOp, "equality comparison", &.{
+        id(.equality, ast.BinOp.op_equality),
+        id(.inequality, ast.BinOp.op_inequality),
+    }));
 });
 
 pub const Expression = Rule(*ast.Expression, struct {

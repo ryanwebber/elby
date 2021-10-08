@@ -172,6 +172,9 @@ pub const Generator = struct {
                 .cmp_eq => |op| {
                     try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "==", function);
                 },
+                .cmp_neq => |op| {
+                    try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "!=", function);
+                },
                 .call => |call| {
                     const callPrototype = scheme.functions.prototypeRegistry.lookupPrototype(call.functionId) orelse {
                         return fatal("Unknown function in call: {s}", .{ call.functionId });
@@ -184,7 +187,7 @@ pub const Generator = struct {
                 .goto => |op| {
                     try writer.print("\tgoto {s};\n", .{ op.label });
                 },
-                .if_not_goto => |op| {
+                .goto_unless => |op| {
                     try writer.print("\tif(!", .{});
                     try writeName(scheme, writer, &op.slot, function);
                     try writer.print(")\n", .{});
@@ -216,13 +219,7 @@ pub const Generator = struct {
     }
 
     fn writeType(writer: anytype, typeDef: *const Type) !void {
-        if (typeDef.equals(&StdTypes.boolean)) {
-            try writer.print("bool", .{});
-        } else if (typeDef.equals(&StdTypes.void)) {
-            try writer.print("void", .{});
-        } else {
-            try writer.print("{s}", .{ typeDef.name });
-        }
+        try writer.print("{s}", .{ typeDef.name });
     }
 
     fn writeName(scheme: *const Scheme, writer: anytype, slot: *const Slot, definition: *const FunctionDefinition) !void {
