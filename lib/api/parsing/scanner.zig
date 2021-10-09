@@ -29,9 +29,10 @@ pub const Scanner = struct {
     pub const Keyword = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
             .{ "else", .kwd_else },
-            .{ "let", .kwd_let },
-            .{ "if", .kwd_if },
             .{ "fn", .kwd_fn },
+            .{ "if", .kwd_if },
+            .{ "let", .kwd_let },
+            .{ "mut", .kwd_mut },
             .{ "return", .kwd_return },
             .{ "while", .kwd_while },
         });

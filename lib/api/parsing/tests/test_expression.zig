@@ -18,7 +18,7 @@ test "parse mixed expression" {
                 .returnType = null,
                 .body = &.{
                     &.{
-                        .assignment = &.{
+                        .definition = &.{
                             .identifier = &.{
                                 .name = "x"
                             },

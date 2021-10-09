@@ -54,9 +54,15 @@ pub const TypeAssociation = struct {
     identifier: *const Identifier,
 };
 
-pub const Assignment = struct {
+pub const Definition = struct {
     identifier: *const Identifier,
     type: *const TypeAssociation,
+    expression: *const Expression,
+    mutable: bool = false,
+};
+
+pub const Assignment = struct {
+    identifier: *const Identifier,
     expression: *const Expression,
 };
 
@@ -79,8 +85,9 @@ pub const WhileLoop = struct {
 pub const Statement = union(enum) {
     assignment: *const Assignment,
     call: *const FunctionCall,
-    ret: ?*const Expression,
+    definition: *const Definition,
     ifchain: *const IfChain,
+    ret: ?*const Expression,
     whileLoop: *const WhileLoop,
 };
 

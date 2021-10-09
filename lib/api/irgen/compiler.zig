@@ -236,7 +236,24 @@ fn compileBlock(statements: []const *const ast.Statement, builder: *InstructionS
 fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
     switch (statement.*) {
         .assignment => |assignment| {
-            try compileAssignment(assignment, builder, context);
+            const slot = try context.slotAllocator.lookupNamedSlot(assignment.identifier.name);
+            const slotType = try context.slotAllocator.lookupNamedType(assignment.identifier.name);
+            const exprInfo = try compileExpression(assignment.expression, slotType, builder, context);
+            try builder.addInstruction(.{
+                .move = .{
+                    .src = .{
+                        .slot = exprInfo.slot,
+                        .offset = 0
+                    },
+                    .dest = .{
+                        .slot = slot,
+                        .offset = 0
+                    },
+                }
+            });
+        },
+        .definition => |definition| {
+            try compileDefinition(definition, builder, context);
         },
         .call => |call| {
             _ = try compileFunctionCall(call, builder, context);
@@ -395,14 +412,14 @@ fn compileFunctionCall(call: *const ast.FunctionCall, builder: *InstructionSetBu
     }
 }
 
-fn compileAssignment(assignment: *const ast.Assignment, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
-    const typeName = assignment.type.identifier.name;
+fn compileDefinition(definition: *const ast.Definition, builder: *InstructionSetBuilder, context: *Context) SystemError!void {
+    const typeName = definition.type.identifier.name;
     const targetType = context.typeRegistry.getType(typeName) orelse {
         return errors.fatal("Unknown type: {s}", .{ typeName });
     };
 
-    const exprInfo = try compileExpression(assignment.expression, targetType, builder, context);
-    const destSlot = try context.slotAllocator.allocateLocalSlot(assignment.identifier.name, targetType);
+    const exprInfo = try compileExpression(definition.expression, targetType, builder, context);
+    const destSlot = try context.slotAllocator.allocateLocalSlot(definition.identifier.name, targetType);
     try builder.addInstruction(.{
         .move = .{
             .src = .{

@@ -1,0 +1,6 @@
+fn main() {
+    mut x: uint8_t = 1;
+    x = 2;
+    x = 3;
+    exit(value: x);
+}

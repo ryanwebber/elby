@@ -1,0 +1,10 @@
+fn main() {
+    mut i: uint8_t = 10;
+    mut c: uint8_t = 5;
+    while (i != 0) {
+        i = i - 1;
+        c = c + 1;
+    }
+
+    exit(value: c);
+}

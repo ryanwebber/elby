@@ -181,35 +181,67 @@ pub const TypeAssociation = Rule(*ast.TypeAssociation, struct {
     }
 });
 
-pub const Definition = Rule(*ast.Assignment, struct {
+pub const Assignment = Rule(*ast.Assignment, struct {
+    // assignment ::= IDENTIFIER = expression
+    pub const parser = mapAlloc(AssignmentParse, ast.Assignment, mapAssignment, sequence(AssignmentParse, "assignment", &.{
+        .identifier = Identifier.parser,
+        .equals = token(.assignment),
+        .expression = Expression.parser,
+        .semicolon = token(.semicolon),
+    }));
+
+    const AssignmentParse = struct {
+        identifier: *ast.Identifier,
+        equals: void,
+        expression: *ast.Expression,
+        semicolon: void,
+    };
+
+    fn mapAssignment(from: AssignmentParse) ast.Assignment {
+        return .{
+            .identifier  = from.identifier,
+            .expression = from.expression,
+        };
+    }
+});
+
+pub const Definition = Rule(*ast.Definition, struct {
     // definition ::= LET IDENTIFIER : TYPE = expression
-    pub const parser = mapAlloc(DefinitionParse, ast.Assignment, mapDefinition, sequence(DefinitionParse, "definition", &.{
-        .let = token(.kwd_let),
+    pub const parser = mapAlloc(DefinitionParse, ast.Definition, mapDefinition, sequence(DefinitionParse, "definition", &.{
+        .decl = first(DeclType, "declaration", &.{
+            id(.kwd_let, DeclType.let),
+            id(.kwd_mut, DeclType.mut),
+        }),
         .identifier = Identifier.parser,
         .colon = token(.colon),
         .type = TypeAssociation.parser,
-        .assignment = token(.assignment),
+        .equals = token(.assignment),
         .expression = Expression.parser,
         .semicolon = token(.semicolon),
     }));
 
     const DefinitionParse = struct {
-        let: void,
+        decl: DeclType,
         identifier: *ast.Identifier,
         colon: void,
         type: *ast.TypeAssociation,
-        assignment: void,
+        equals: void,
         expression: *ast.Expression,
         semicolon: void,
     };
 
-    fn mapDefinition(from: DefinitionParse) ast.Assignment {
+    fn mapDefinition(from: DefinitionParse) ast.Definition {
         return .{
             .identifier  = from.identifier,
             .type = from.type,
             .expression = from.expression,
+            .mutable = from.decl == .mut,
         };
     }
+
+    const DeclType = enum {
+        let, mut,
+    };
 });
 
 pub const Argument = Rule(*ast.Argument, struct {
@@ -405,12 +437,19 @@ pub const While = Rule(*ast.WhileLoop, struct {
 
 pub const Statement = Rule(*ast.Statement, struct {
     pub const parser = first(*ast.Statement, "statement", &.{
-        mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Definition.parser),
+        mapAlloc(*ast.Definition, ast.Statement, mapDefinition, Definition.parser),
+        mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Assignment.parser),
         mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCallStatement.parser),
         mapAlloc(?*ast.Expression, ast.Statement, mapReturn, ReturnStatement.parser),
         mapAlloc(*ast.IfChain, ast.Statement, mapIfChain, IfChain.parser),
         mapAlloc(*ast.WhileLoop, ast.Statement, mapWhileLoop, While.parser),
     });
+
+    fn mapDefinition(from: *ast.Definition) ast.Statement {
+        return .{
+            .definition = from,
+        };
+    }
 
     fn mapAssignment(from: *ast.Assignment) ast.Statement {
         return .{
