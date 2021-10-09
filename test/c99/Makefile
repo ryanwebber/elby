@@ -1,8 +1,15 @@
 
 TMPDIR ?= /tmp
-TESTS ?= $(sort $(shell find tests -name "test.rb"))
+export ELBY_TEMP_DIR := $(TMPDIR)
 
-test:
-	for test in $(TESTS) ; do echo "Running test: $$test" && ELBY_TEMP_DIR=$$TMPDIR ruby $$test ; done
+TESTS ?= $(sort $(shell /bin/ls tests))
+TEST_PATHS := $(TESTS:%=tests/%)
 
-.PHONY: test
+test: $(TEST_PATHS)
+
+$(TEST_PATHS):
+	@echo
+	@echo "Running test: $@"
+	ruby $@/test.rb
+
+.PHONY: test $(TEST_PATHS)
