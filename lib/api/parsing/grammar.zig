@@ -100,12 +100,31 @@ pub const Identifier = Rule(*ast.Identifier, struct {
     }
 });
 
+pub const Block = Rule([]const *ast.Statement, struct {
+    pub const parser = mapValue(BlockExpr, []const *ast.Statement, mapBlockExpr, sequence(BlockExpr, "block", &.{
+        .lbrace = token(.left_brace),
+        .statements = atLeast(*ast.Statement, 1, "statements", Statement.parser),
+        .rbrace = token(.right_brace),
+    }));
+
+    const BlockExpr = struct {
+        lbrace: void,
+        statements: []const *ast.Statement,
+        rbrace: void,
+    };
+
+    fn mapBlockExpr(from: BlockExpr) []const *ast.Statement {
+        return from.statements;
+    }
+});
+
 pub const Factor = Rule(*ast.Expression, struct {
     // factor  ::= NUM | IDENTIFIER | ( expr )
     pub const parser = first(*ast.Expression, "factor", &.{
         mapAlloc(*ast.NumberLiteral, ast.Expression, mapNumber, Number.parser),
         mapAlloc(*ast.FunctionCall, ast.Expression, mapFunctionCall, FunctionCall.parser),
         mapAlloc(*ast.Identifier, ast.Expression, mapIdentifier, Identifier.parser),
+        mapAlloc([]const *ast.Statement, ast.Expression, mapBlock, Block.parser),
         mapValue(BracketedExpr, *ast.Expression, mapBrackets, sequence(BracketedExpr, "( <expression> )", &.{
             .left_paren = token(.left_paren),
             .expr = Expression.parser,
@@ -128,6 +147,12 @@ pub const Factor = Rule(*ast.Expression, struct {
     fn mapIdentifier(from: *ast.Identifier) ast.Expression {
         return .{
             .identifier = from,
+        };
+    }
+
+    fn mapBlock(from: []const *ast.Statement) ast.Expression {
+        return .{
+            .block = from,
         };
     }
 
@@ -333,6 +358,24 @@ pub const ReturnStatement = Rule(?*ast.Expression, struct {
     }
 });
 
+pub const YieldStatement = Rule(*ast.Expression, struct {
+    pub const parser = mapValue(YieldParse, *ast.Expression, mapYield, sequence(YieldParse, "yield statement", &.{
+        .yield = token(.kwd_yield),
+        .expression = Expression.parser,
+        .semicolon = token(.semicolon),
+    }));
+
+    const YieldParse = struct {
+        yield: void,
+        expression: *ast.Expression,
+        semicolon: void,
+    };
+
+    fn mapYield(from: YieldParse) *ast.Expression {
+        return from.expression;
+    }
+});
+
 pub const ElseIf = Rule(?ast.ElseIf, struct {
     pub const parser = maybe(ast.ElseIf, mapValue(ElseIfChainParse, ast.ElseIf, mapElseIfChain, sequence(ElseIfChainParse, "else if statements", &.{
         .elsetok = token(.kwd_else),
@@ -440,6 +483,7 @@ pub const Statement = Rule(*ast.Statement, struct {
         mapAlloc(*ast.Definition, ast.Statement, mapDefinition, Definition.parser),
         mapAlloc(*ast.Assignment, ast.Statement, mapAssignment, Assignment.parser),
         mapAlloc(*ast.FunctionCall, ast.Statement, mapFunctionCall, FunctionCallStatement.parser),
+        mapAlloc(*ast.Expression, ast.Statement, mapYield, YieldStatement.parser),
         mapAlloc(?*ast.Expression, ast.Statement, mapReturn, ReturnStatement.parser),
         mapAlloc(*ast.IfChain, ast.Statement, mapIfChain, IfChain.parser),
         mapAlloc(*ast.WhileLoop, ast.Statement, mapWhileLoop, While.parser),
@@ -460,6 +504,12 @@ pub const Statement = Rule(*ast.Statement, struct {
     fn mapFunctionCall(from: *ast.FunctionCall) ast.Statement {
         return .{
             .call = from,
+        };
+    }
+
+    fn mapYield(from: *ast.Expression) ast.Statement {
+        return .{
+            .yield = from,
         };
     }
 

@@ -2,8 +2,8 @@ fn main() {
     let x: uint8_t = 2;
     let y: uint8_t = 3;
     if (x * y * 2 == 12) {
-        exit(value: 0);
+        exit(status: 0);
     } else {
-        exit(value: 1);
+        exit(status: 1);
     }
 }

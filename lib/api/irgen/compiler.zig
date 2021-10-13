@@ -4,6 +4,7 @@ const func = @import("function.zig");
 const types = @import("../types.zig");
 const errors = @import("../error.zig");
 const Slot = @import("slot.zig").Slot;
+const SlotIndex = @import("slot.zig").SlotIndex;
 const Scheme = @import("scheme.zig").Scheme;
 const FunctionRegistry = @import("scheme.zig").FunctionRegistry;
 const Instruction = @import("instruction.zig").Instruction;
@@ -56,6 +57,7 @@ pub const SlotAllocator = struct {
     paramSlots: std.StringArrayHashMap(NamedSlot),
     localSlots: std.StringArrayHashMap(NamedSlot),
     tempSlots: std.ArrayList(*const types.Type),
+    yieldSlots: std.ArrayList(SlotIndex),
 
     const Self = @This();
 
@@ -73,6 +75,7 @@ pub const SlotAllocator = struct {
 
         var localSlots = std.StringArrayHashMap(NamedSlot).init(allocator);
         var tempSlots = std.ArrayList(*const types.Type).init(allocator);
+        var yieldSlots = std.ArrayList(SlotIndex).init(allocator);
 
         return Self {
             .allocator = allocator,
@@ -80,6 +83,7 @@ pub const SlotAllocator = struct {
             .paramSlots = paramSlots,
             .localSlots = localSlots,
             .tempSlots = tempSlots,
+            .yieldSlots = yieldSlots,
         };
     }
 
@@ -87,6 +91,7 @@ pub const SlotAllocator = struct {
         self.paramSlots.deinit();
         self.localSlots.deinit();
         self.tempSlots.deinit();
+        self.yieldSlots.deinit();
     }
 
     pub fn allocateTemporarySlot(self: *Self, slotType: *const types.Type) !Slot {
@@ -143,6 +148,33 @@ pub const SlotAllocator = struct {
         }
 
         return errors.fatal("Unknown named slot: {s}", .{ name });
+    }
+
+    pub fn popYieldSlot(self: *Self) !SlotTypePair {
+        const slotIndex = self.yieldSlots.popOrNull() orelse {
+            return errors.fatal("Yield slot stack underflow.", .{});
+        };
+
+        const slotType = self.tempSlots.items[slotIndex.index];
+        const slot = Slot {
+            .temp = slotIndex,
+        };
+
+        return SlotTypePair {
+            .slot = slot,
+            .type = slotType,
+        };
+    }
+
+    pub fn pushYieldSlot(self: *Self, slotType: *const types.Type) !Slot {
+        const slot = try self.allocateTemporarySlot(slotType);
+        const slotIndex = switch (slot) {
+            .temp => |t| t,
+            else => return errors.fatal("Unexpected non-temp yield slot", .{}),
+        };
+
+        try self.yieldSlots.append(slotIndex);
+        return slot;
     }
 };
 
@@ -212,6 +244,8 @@ pub fn compileScheme(allocator: *std.mem.Allocator,
             allocator.destroy(definition);
             return err;
         };
+
+        std.debug.assert(context.slotAllocator.yieldSlots.items.len == 0);
     }
 
     const registry = try FunctionRegistry.initManaged(allocator, functions.toOwnedSlice(), prototypeRegistry);
@@ -257,6 +291,22 @@ fn compileStatement(statement: *const ast.Statement, builder: *InstructionSetBui
         },
         .call => |call| {
             _ = try compileFunctionCall(call, builder, context);
+        },
+        .yield => |expr| {
+            const slotInfo = try context.slotAllocator.popYieldSlot();
+            const yieldInfo = try compileExpression(expr, slotInfo.type, builder, context);
+            try builder.addInstruction(.{
+                .move = .{
+                    .src = .{
+                        .offset = 0,
+                        .slot = yieldInfo.slot,
+                    },
+                    .dest = .{
+                        .offset = 0,
+                        .slot = slotInfo.slot,
+                    }
+                }
+            });
         },
         .ret => |expr| {
             const returnType = context.currentPrototype().returnType;
@@ -566,7 +616,15 @@ fn compileExpression(expr: *const ast.Expression, typeHint: *const types.Type, b
             } else {
                 return errors.fatal("Return type not usable as expression (call to {s})", .{ call.identifier.name });
             }
-        }
+        },
+        .block => |statements| {
+            const yieldSlot = try context.slotAllocator.pushYieldSlot(typeHint);
+            try compileBlock(statements, builder, context);
+            return SlotTypePair {
+                .slot = yieldSlot,
+                .type = typeHint,
+            };
+        },
     }
 }
 

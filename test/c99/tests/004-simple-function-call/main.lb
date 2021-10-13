@@ -4,9 +4,9 @@ fn main() {
     let z: uint8_t = add(a: x, b: y) * 3;
     let q: uint8_t = doubleIf12(a: z);
     if (q == 24) {
-        exit(value: 0);
+        exit(status: 0);
     } else {
-        exit(value: q);
+        exit(status: q);
     }
 }
 

@@ -34,6 +34,7 @@ pub const Expression = union(enum) {
     identifier: *const Identifier,
     binary_expression: *const BinaryExpression,
     function_call: *const FunctionCall,
+    block: []const *const Statement,
 };
 
 pub const Argument = struct {
@@ -88,6 +89,7 @@ pub const Statement = union(enum) {
     definition: *const Definition,
     ifchain: *const IfChain,
     ret: ?*const Expression,
+    yield: *const Expression,
     whileLoop: *const WhileLoop,
 };
 

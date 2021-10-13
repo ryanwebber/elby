@@ -28,13 +28,14 @@ pub const Scanner = struct {
 
     pub const Keyword = struct {
         pub const keywords = std.ComptimeStringMap(Token.Value, .{
-            .{ "else", .kwd_else },
-            .{ "fn", .kwd_fn },
-            .{ "if", .kwd_if },
-            .{ "let", .kwd_let },
-            .{ "mut", .kwd_mut },
-            .{ "return", .kwd_return },
-            .{ "while", .kwd_while },
+            .{ "else",      .kwd_else },
+            .{ "fn",        .kwd_fn },
+            .{ "if",        .kwd_if },
+            .{ "let",       .kwd_let },
+            .{ "mut",       .kwd_mut },
+            .{ "return",    .kwd_return },
+            .{ "while",     .kwd_while },
+            .{ "yield",     .kwd_yield },
         });
 
         pub fn asID(name: []const u8) ?Token.Value {

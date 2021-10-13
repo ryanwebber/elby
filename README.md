@@ -60,6 +60,13 @@ fn main() {
 
     // reference types with auto-self capturing
     point.zero();
+
+    // blocks, end with a yield expression
+    let d: int = {
+        let a: int = 1;
+        let b: int = 2;
+        yield a + b;
+    }
 }
 
 // structs
@@ -80,4 +87,52 @@ struct Point {
 fn makeZero(x: ref int15) -> {
     x = 0;
 }
+
+// types (replacement for structs)
+// needs switch statement, self-function syntax,
+// and logic around single-constructor types
+
+type Point
+    = Vec2(x: Int, y: Int)
+    | Vec3(x: Int, y: Int, z: Int)
+    ;
+
+type Optional(T) = Some(value: T) | None;
+type Direction = Up | Down | Left | Right;
+type Fraction = Fraction(numerator: float, denominator: float)
+
+let point: Point = Vec2(x: 0, y: 0);
+let maybePoint: Optional(Point) = Some(value: Point);
+let dir: Direction = Up;
+
+match (maybePoint) {
+    (container: Some) => {
+        yield container.value;
+    };
+    case None => 1;
+}
+
 ```
+
+## Progress
+
+Current language features:
+ - [*] Basic types
+ - [*] Basic expressions
+ - [*] If statements
+ - [*] While loops
+ - [*] Functions and calls
+ - [*] Extern functions
+ - [ ] Comments
+ - [ ] Unary operators (-, !)
+ - [ ] Boolean logic operators (<, >, <=, >=)
+ - [ ] Bitwise operators (|, &, ~, ^)
+ - [ ] Blocks
+ - [ ] Ref types
+ - [ ] Complex types (structs / sum types)
+ - [ ] Optionals, math overflows
+ - [ ] Match expressions
+
+Targets:
+ - `c`: Working as far as language features go
+ - `agc`: Waiting on additional language features

@@ -1,0 +1,13 @@
+fn main() {
+    let x: uint8_t = {
+        let a: uint8_t = 1;
+        let b: uint8_t = 2;
+        yield {
+            yield a + b;
+        };
+    };
+
+    exit(status: {
+        yield x + 1;
+    });
+}

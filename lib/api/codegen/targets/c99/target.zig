@@ -37,7 +37,7 @@ pub const Target = target.Target(Generator, &.{
             .returnType = &StdTypes.void,
             .parameters = &.{
                 .{
-                    .name = "value",
+                    .name = "status",
                     .type = &C_Types.uint8_t,
                 }
             },

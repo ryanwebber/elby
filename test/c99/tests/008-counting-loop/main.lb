@@ -6,5 +6,5 @@ fn main() {
         c = c + 1;
     }
 
-    exit(value: c);
+    exit(status: c);
 }
