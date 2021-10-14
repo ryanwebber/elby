@@ -2,7 +2,7 @@ const std = @import("std");
 const types = @import("../types.zig");
 const slot = @import("slot.zig");
 
-const BinOp = struct {
+pub const BinOp = struct {
     dest: slot.Slot,
     lhs: slot.Slot,
     rhs: slot.Slot,
@@ -16,7 +16,7 @@ const BinOp = struct {
     }
 };
 
-const MoveOp = struct {
+pub const MoveOp = struct {
     src: OffsetAssignment,
     dest: OffsetAssignment,
 
@@ -33,7 +33,7 @@ const MoveOp = struct {
     }
 };
 
-const LoadOp = struct {
+pub const LoadOp = struct {
     dest: slot.Slot,
     value: types.Numeric,
 
@@ -44,7 +44,7 @@ const LoadOp = struct {
     }
 };
 
-const CallOp = struct {
+pub const CallOp = struct {
     functionId: []const u8,
 
     pub fn format(self: *const CallOp, writer: anytype) !void {
@@ -52,7 +52,7 @@ const CallOp = struct {
     }
 };
 
-const ConditionalGoto = struct {
+pub const ConditionalGoto = struct {
     slot: slot.Slot,
     label: []const u8,
 
@@ -71,6 +71,10 @@ pub const Instruction = union(enum) {
     div: BinOp,
     cmp_eq: BinOp,
     cmp_neq: BinOp,
+    cmp_lt: BinOp,
+    cmp_lt_eq: BinOp,
+    cmp_gt: BinOp,
+    cmp_gt_eq: BinOp,
     call: CallOp,
     goto: struct { label: []const u8 },
     goto_unless: ConditionalGoto,
@@ -110,6 +114,18 @@ pub const Instruction = union(enum) {
             },
             .cmp_neq => |op| {
                 try op.format(writer, "!=");
+            },
+            .cmp_lt => |op| {
+                try op.format(writer, "<");
+            },
+            .cmp_lt_eq => |op| {
+                try op.format(writer, "<=");
+            },
+            .cmp_gt => |op| {
+                try op.format(writer, ">");
+            },
+            .cmp_gt_eq => |op| {
+                try op.format(writer, ">=");
             },
             .call => |call| {
                 try call.format(writer);

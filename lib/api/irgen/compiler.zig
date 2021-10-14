@@ -584,6 +584,34 @@ fn compileExpression(expr: *const ast.Expression, typeHint: *const types.Type, b
                         .rhs = rhs
                     }
                 },
+                .op_lt => .{
+                    .cmp_lt = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
+                .op_lt_eq => .{
+                    .cmp_lt_eq = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
+                .op_gt => .{
+                    .cmp_gt = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
+                .op_gt_eq => .{
+                    .cmp_gt_eq = .{
+                        .dest = slot,
+                        .lhs = lhs,
+                        .rhs = rhs
+                    }
+                },
             };
 
             try builder.addInstruction(instruction);
@@ -635,7 +663,7 @@ fn resolveExpressionForOperator(operator: ast.BinOp, hint: *const types.Type) ?*
                 return hint;
             }
         },
-        .op_equality, .op_inequality => {
+        .op_equality, .op_inequality, .op_lt, .op_lt_eq, .op_gt, .op_gt_eq => {
             return &types.Types.boolean;
         },
     }

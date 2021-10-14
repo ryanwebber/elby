@@ -175,6 +175,18 @@ pub const Generator = struct {
                 .cmp_neq => |op| {
                     try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "!=", function);
                 },
+                .cmp_lt => |op| {
+                    try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "<", function);
+                },
+                .cmp_lt_eq => |op| {
+                    try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, "<=", function);
+                },
+                .cmp_gt => |op| {
+                    try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, ">", function);
+                },
+                .cmp_gt_eq => |op| {
+                    try writeBinOp(scheme, writer, &op.dest, &op.lhs, &op.rhs, ">=", function);
+                },
                 .call => |call| {
                     const callPrototype = scheme.functions.prototypeRegistry.lookupPrototype(call.functionId) orelse {
                         return fatal("Unknown function in call: {s}", .{ call.functionId });

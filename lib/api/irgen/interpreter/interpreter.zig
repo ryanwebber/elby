@@ -117,6 +117,18 @@ pub const SimpleInterpreter = struct {
                 .cmp_neq => |op| {
                     (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* != (try fnData.getPtr(&op.rhs)).*);
                 },
+                .cmp_lt => |op| {
+                    (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* < (try fnData.getPtr(&op.rhs)).*);
+                },
+                .cmp_gt => |op| {
+                    (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* > (try fnData.getPtr(&op.rhs)).*);
+                },
+                .cmp_lt_eq => |op| {
+                    (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* <= (try fnData.getPtr(&op.rhs)).*);
+                },
+                .cmp_gt_eq => |op| {
+                    (try fnData.getPtr(&op.dest)).* = @boolToInt((try fnData.getPtr(&op.lhs)).* >= (try fnData.getPtr(&op.rhs)).*);
+                },
                 .call => |call| {
                     const callFunction = self.scheme.functions.mapping.get(call.functionId) orelse {
                         return InterpreterError.FunctionNotFound;

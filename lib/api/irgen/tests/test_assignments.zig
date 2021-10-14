@@ -30,3 +30,21 @@ test "mutable var ir generation" {
     const result = try utils.evaluateIR(std.testing.allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
+
+test "block expression" {
+
+    const source =
+        \\fn main() -> Int {
+        \\  let x: Int = {
+        \\    let a: Int = 1;
+        \\    let b: Int = 2;
+        \\    yield { yield a + b; };
+        \\  };
+        \\
+        \\  return { yield x + 1; };
+        \\}
+        ;
+
+    const result = try utils.evaluateIR(std.testing.allocator, source);
+    try std.testing.expectEqual(@intCast(@TypeOf(result), 4), result);
+}

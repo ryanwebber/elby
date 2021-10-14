@@ -97,3 +97,23 @@ test "bool types" {
     const result = try utils.evaluateIR(std.testing.allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
+
+test "relation expression" {
+
+    const source =
+        \\fn main() -> Int {
+        \\  let x: Int = 8;
+        \\  let y: Int = 10;
+        \\  if (x + 5 < y) {
+        \\    return 1;
+        \\  } else if (y >= 10) {
+        \\    return 2;
+        \\  } else {
+        \\    return 3;
+        \\  }
+        \\}
+        ;
+
+    const result = try utils.evaluateIR(std.testing.allocator, source);
+    try std.testing.expectEqual(@intCast(@TypeOf(result), 2), result);
+}

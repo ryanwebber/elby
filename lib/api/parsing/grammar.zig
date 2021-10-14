@@ -119,7 +119,7 @@ pub const Block = Rule([]const *ast.Statement, struct {
 });
 
 pub const Factor = Rule(*ast.Expression, struct {
-    // factor  ::= NUM | IDENTIFIER | ( expr )
+    // factor  ::= NUM | IDENTIFIER | ( expr ) | '{' { STATEMENTS }+ '}' | FUNCTION_CALL
     pub const parser = first(*ast.Expression, "factor", &.{
         mapAlloc(*ast.NumberLiteral, ast.Expression, mapNumber, Number.parser),
         mapAlloc(*ast.FunctionCall, ast.Expression, mapFunctionCall, FunctionCall.parser),
@@ -183,9 +183,19 @@ pub const Addative = Rule(*ast.Expression, struct {
     }));
 });
 
+pub const Relational = Rule(*ast.Expression, struct {
+    // relationl ::= addative { ( + | - ) addative } *
+    pub const parser = associativeBinOpParser("relational expression", Addative.parser, first(ast.BinOp, "relational comparison", &.{
+        id(.less_than_equals, ast.BinOp.op_lt_eq),
+        id(.less_than, ast.BinOp.op_lt),
+        id(.greater_than_equals, ast.BinOp.op_gt_eq),
+        id(.greater_than, ast.BinOp.op_gt),
+    }));
+});
+
 pub const Equality = Rule(*ast.Expression, struct {
-    // equality ::= addative { ( + | - ) addative } *
-    pub const parser = associativeBinOpParser("equality expression", Addative.parser, first(ast.BinOp, "equality comparison", &.{
+    // equality ::= relationl { ( + | - ) relationl } *
+    pub const parser = associativeBinOpParser("equality expression", Relational.parser, first(ast.BinOp, "equality comparison", &.{
         id(.equality, ast.BinOp.op_equality),
         id(.inequality, ast.BinOp.op_inequality),
     }));

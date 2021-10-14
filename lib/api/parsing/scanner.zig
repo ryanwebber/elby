@@ -140,7 +140,27 @@ pub const Scanner = struct {
                                 .capture_lookahead = .{
                                     .fallback = .assignment,
                                     .possibles = &.{
-                                        .{ .char = '=', .token = Token.Value.equality },
+                                        .{ .char = '=', .token = .equality },
+                                    }
+                                }
+                            };
+                        },
+                        '<' => {
+                            state = .{
+                                .capture_lookahead = .{
+                                    .fallback = .less_than,
+                                    .possibles = &.{
+                                        .{ .char = '=', .token = .less_than_equals },
+                                    }
+                                }
+                            };
+                        },
+                        '>' => {
+                            state = .{
+                                .capture_lookahead = .{
+                                    .fallback = .greater_than,
+                                    .possibles = &.{
+                                        .{ .char = '=', .token = .greater_than_equals },
                                     }
                                 }
                             };
@@ -154,7 +174,7 @@ pub const Scanner = struct {
                                 .capture_lookahead = .{
                                     .fallback = .minus,
                                     .possibles = &.{
-                                        .{ .char = '>', .token = Token.Value.arrow },
+                                        .{ .char = '>', .token = .arrow },
                                     }
                                 }
                             };
@@ -184,7 +204,7 @@ pub const Scanner = struct {
                                 .capture_lookahead = .{
                                     .fallback = .bang,
                                     .possibles = &.{
-                                        .{ .char = '=', .token = Token.Value.inequality },
+                                        .{ .char = '=', .token = .inequality },
                                     }
                                 }
                             };
