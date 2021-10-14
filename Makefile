@@ -1,5 +1,8 @@
 BIN_DIR := $(PWD)/zig-out/bin
 DOCKER := podman
+NPM := npm
+
+PARSER_SOURCE := lib/parser
 
 all: build test
 
@@ -9,22 +12,35 @@ build:
 install:
 	zig build install
 
-test: build
+test: test-unit test-compiler-inspect
+
+test-unit:
 	zig build test
+
+test-compiler:
 	@PATH=$(BIN_DIR):$(PATH) ; make -C test/c99 test
 
-test-inspect: build
-	zig build test
+test-compiler-inspect:
 	@PATH=$(BIN_DIR):$(PATH) ; make -C test/c99 test TMPDIR=$(PWD)/.test-out/c
 
-test-docker: build
+# Parser
+
+generate-parser:
+	$(NPM) install --prefix $(PARSER_SOURCE)
+	$(NPM) run --prefix $(PARSER_SOURCE) generate
+
+test-parser: parser
+	$(NPM) run --prefix $(PARSER_SOURCE) test
+
+# Docker
+
+docker-bootstrap:
 	$(DOCKER) build -t elby/base -f Dockerfile
 	$(DOCKER) build -t elby/tests/c -f test/c99/Dockerfile
-	$(DOCKER) run -it --network none elby/tests/c
 
 clean:
 	rm -rf zig-cache
 	rm -rf zig-out
 	rm -rf .test-out
 
-.PHONY: all build install test test-inspect test-docker clean
+.PHONY: all build install test test-unit test-compiler test-compiler-inspect docker-bootstrap clean

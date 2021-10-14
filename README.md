@@ -137,3 +137,35 @@ Current language features:
 Targets:
  - `c`: Working as far as language features go
  - `agc`: Waiting on additional language features
+
+## Contributing
+
+### Toolchain
+
+The toolchain is split into multiple binaries. You can build them with the various
+`zig build` steps, or, just call make:
+
+```bash
+# Build executables
+make build
+
+# Install the executables
+make install
+
+# Run the unit tests and the compiler tests
+make test
+```
+
+### Parser
+
+The parser is generated from a tree-sitter grammar. The generated `c` source files
+are checked into the repo and only need to be rebuilt when the grammar changes. To generate
+the parser, you'll need an installation of `npm` and `node`, at which point you can run:
+
+```bash
+# Generate the parser
+make generate-parser
+
+# Test the parser
+make test-parser
+```

@@ -1,0 +1,15 @@
+{
+  "name": "elby-parser",
+  "description": "Tree-sitter parser for elby",
+  "main": "grammar.js",
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.20.0"
+  },
+  "dependencies": {
+    "nan": "^2.15.0"
+  }
+}

@@ -62,6 +62,8 @@ pub fn build(b: *std.build.Builder) void {
         exe.setBuildMode(mode);
         exe.install();
 
+        linkParser(exe);
+
         exe_options.addOption([]const u8, "version", version);
         exe_options.addOption([]const u8, "name", command.name);
 
@@ -80,6 +82,19 @@ pub fn build(b: *std.build.Builder) void {
     lib_tests_api_unit_cmd.setTarget(target);
     lib_tests_api_unit_cmd.setBuildMode(mode);
     lib_tests_step.dependOn(&lib_tests_api_unit_cmd.step);
+    linkParser(lib_tests_api_unit_cmd);
 
     tests_step.dependOn(lib_tests_step);
+}
+
+fn linkParser(step: *std.build.LibExeObjStep) void {
+    // Treesitter sources
+    step.addCSourceFile("deps/tree-sitter/lib/src/lib.c", &[_][]const u8{"-std=c99"});
+    step.addIncludeDir("deps/tree-sitter/lib/src");
+    step.addIncludeDir("deps/tree-sitter/lib/include");
+
+    // Elby parser definition
+    step.addCSourceFile("lib/parser/src/parser.c", &[_][]const u8{"-std=c99"});
+    step.addIncludeDir("lib/parser/src/tree_sitter");
+    step.linkLibC();
 }
