@@ -117,21 +117,22 @@ match (maybePoint) {
 ## Progress
 
 Current language features:
- - [*] Basic types
- - [*] Basic expressions
- - [*] If statements
- - [*] While loops
- - [*] Functions and calls
- - [*] Extern functions
- - [ ] Comments
+ - [x] Basic types
+ - [x] Basic expressions
+ - [x] If statements
+ - [x] While loops
+ - [x] Functions and calls
+ - [x] Extern functions
+ - [x] Comments
  - [ ] Unary operators (-, !)
- - [ ] Boolean logic operators (<, >, <=, >=)
+ - [x] Boolean logic operators (<, >, <=, >=)
  - [ ] Bitwise operators (|, &, ~, ^)
- - [ ] Blocks
+ - [x] Blocks
  - [ ] Ref types
  - [ ] Complex types (structs / sum types)
  - [ ] Optionals, math overflows
  - [ ] Match expressions
+ - [ ] Inline asm
 
 Targets:
  - `c`: Working as far as language features go

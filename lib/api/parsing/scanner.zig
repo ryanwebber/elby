@@ -96,7 +96,9 @@ pub const Scanner = struct {
             capture_number,
             capture_number_radix,
             capture_number_digits,
+            capture_comment,
             capture_lookahead: SingleLookahead,
+            wait_for_new_line,
         } = .capture_source;
 
         // The offset to where this capture started
@@ -184,8 +186,7 @@ pub const Scanner = struct {
                             break;
                         },
                         '/' => {
-                            token.type = .fslash;
-                            break;
+                            state = .capture_comment;
                         },
                         ';' => {
                             token.type = .semicolon;
@@ -320,6 +321,20 @@ pub const Scanner = struct {
                         }
                     }
                 },
+                .capture_comment => {
+                    switch (slice[0]) {
+                        '/' => {
+                            // This is a comment
+                            state = .wait_for_new_line;
+                        },
+                        else => {
+                            // Not a comment. Backup and yield a div
+                            token.type = .fslash;
+                            self.backtrack(slice);
+                            break;
+                        }
+                    }
+                },
                 .capture_lookahead => |lookahead| {
                     for (lookahead.possibles) |p| {
                         if (slice[0] == p.char) {
@@ -331,6 +346,30 @@ pub const Scanner = struct {
                     token.type = lookahead.fallback;
                     self.backtrack(slice);
                     break;
+                },
+                .wait_for_new_line => {
+                    switch (slice[0]) {
+                        '\n' => {
+                            // Line break, swallow and loop
+                            self.current_line += 1;
+                            tok_start = self.iterator.i;
+                            state = .capture_source;
+                        },
+                        '\r' => {
+                            // Line break, check for a \r\n style break and swallow/loop
+                            const nextSlice = self.iterator.peek(1);
+                            if (nextSlice.len == 1 and '\n' == nextSlice[0]) {
+                                self.iterator.i += 1;
+                            }
+
+                            self.current_line += 1;
+                            tok_start = self.iterator.i;
+                            state = .capture_source;
+                        },
+                        else => {
+                            // Part of the comment. Skip
+                        }
+                    }
                 },
             }
         } else {
@@ -516,4 +555,20 @@ test "scan: let kwds" {
     try expectId(.kwd_let, &scanner);
     try expectId(.kwd_let, &scanner);
     try expectId(.eof, &scanner);
+}
+
+test "scan: comments" {
+
+    const source =
+        \\let
+        \\let// hello world!//more comment
+        \\//comment
+        \\let
+        ;
+
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, source);
+    try expectId(.kwd_let, &scanner);
+    try expectId(.kwd_let, &scanner);
+    try expectId(.kwd_let, &scanner);
 }
