@@ -89,3 +89,44 @@ test "parse mixed expression" {
         }
     });
 }
+
+test "parse unary expression" {
+    const source = "fn main() { let x: i = -a; }";
+    try utils.expectAst(std.testing.allocator, source, &.{
+        .functions = &.{
+            &.{
+                .identifier = &.{
+                    .name = "main",
+                },
+                .paramlist = &.{
+                    .parameters = &.{}
+                },
+                .returnType = null,
+                .body = &.{
+                    &.{
+                        .definition = &.{
+                            .identifier = &.{
+                                .name = "x"
+                            },
+                            .type = &.{
+                                .identifier = &.{
+                                    .name = "i"
+                                },
+                            },
+                            .expression = &.{
+                                .unary_expression = &.{
+                                    .op = ast.UnaryOp.op_negate,
+                                    .rhs = &.{
+                                        .identifier = &.{
+                                            .name = "a"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+}

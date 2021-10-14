@@ -529,6 +529,57 @@ fn compileExpression(expr: *const ast.Expression, typeHint: *const types.Type, b
                 .type = idType,
             };
         },
+        .unary_expression => |node| {
+            const expectedType = switch (node.op) {
+                .op_not => &types.Types.boolean,
+                .op_negate => typeHint
+            };
+
+            const rhs = try compileExpression(node.rhs, expectedType, builder, context);
+            const slot = try context.slotAllocator.allocateTemporarySlot(rhs.type);
+            switch (node.op) {
+                .op_not => {
+                    unreachable; // TODO
+                },
+                .op_negate => {
+                    const zeroNumeric = switch (rhs.type.value) {
+                        .numeric => |n| switch (n.type) {
+                            .int => types.Numeric {
+                                .int = @intCast(types.IntType, 0)
+                            },
+                            .float => types.Numeric {
+                                .float = @floatCast(types.FloatType, 0)
+                            }
+                        },
+                        else => {
+                            return errors.fatal("Cannot negate a non-numeric type", .{});
+                        }
+                    };
+
+                    const zeroSlot = try context.slotAllocator.allocateTemporarySlot(rhs.type);
+
+                    try builder.addInstruction(.{
+                        .load = .{
+                            .dest = zeroSlot,
+                            .value = zeroNumeric,
+                        }
+                    });
+
+                    try builder.addInstruction(.{
+                        .sub = .{
+                            .dest = slot,
+                            .lhs = zeroSlot,
+                            .rhs = rhs.slot
+                        }
+                    });
+                }
+            }
+
+            return SlotTypePair {
+                .slot = slot,
+                .type = rhs.type,
+            };
+        },
         .binary_expression => |node| {
             const lhsPair = try compileExpression(node.lhs, typeHint, builder, context);
             const rhsPair = try compileExpression(node.rhs, lhsPair.type, builder, context);

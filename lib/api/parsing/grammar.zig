@@ -118,8 +118,8 @@ pub const Block = Rule([]const *ast.Statement, struct {
     }
 });
 
-pub const Factor = Rule(*ast.Expression, struct {
-    // factor  ::= NUM | IDENTIFIER | ( expr ) | '{' { STATEMENTS }+ '}' | FUNCTION_CALL
+pub const Primary = Rule(*ast.Expression, struct {
+    // primary  ::= NUM | IDENTIFIER | ( expr ) | '{' { STATEMENTS }+ '}' | FUNCTION_CALL
     pub const parser = first(*ast.Expression, "factor", &.{
         mapAlloc(*ast.NumberLiteral, ast.Expression, mapNumber, Number.parser),
         mapAlloc(*ast.FunctionCall, ast.Expression, mapFunctionCall, FunctionCall.parser),
@@ -167,9 +167,42 @@ pub const Factor = Rule(*ast.Expression, struct {
     };
 });
 
-pub const Term = Rule(*ast.Expression, struct {
-    // term ::= factor { ( * | / ) factor } *
-    pub const parser = associativeBinOpParser("multaplicative expression", Factor.parser, first(ast.BinOp, "product", &.{
+pub const Unary = Rule(*ast.Expression, struct {
+    pub const parser = first(*ast.Expression, "unary expression", &.{
+        Primary.parser,
+        mapAlloc(*ast.UnaryExpression, ast.Expression, mapUnaryExpr, unaryParser),
+    });
+
+    const unaryParser = mapAlloc(UnaryParse, ast.UnaryExpression, mapUnary, sequence(UnaryParse, "unary expression", &.{
+        .operator = first(ast.UnaryOp, "unary operator", &.{
+            id(.bang, ast.UnaryOp.op_not),
+            id(.minus, ast.UnaryOp.op_negate)
+        }),
+        .expression = Unary.parser,
+    }));
+
+    const UnaryParse = struct {
+        operator: ast.UnaryOp,
+        expression: *ast.Expression,
+    };
+
+    fn mapUnary(from: UnaryParse) ast.UnaryExpression {
+        return .{
+            .op = from.operator,
+            .rhs = from.expression,
+        };
+    }
+
+    fn mapUnaryExpr(from: *ast.UnaryExpression) ast.Expression {
+        return .{
+            .unary_expression = from
+        };
+    }
+});
+
+pub const Multaplicative = Rule(*ast.Expression, struct {
+    // multaplicative ::= unary { ( * | / ) unary } *
+    pub const parser = associativeBinOpParser("multaplicative expression", Unary.parser, first(ast.BinOp, "product", &.{
         id(.star, ast.BinOp.op_mul),
         id(.fslash, ast.BinOp.op_div)
     }));
@@ -177,7 +210,7 @@ pub const Term = Rule(*ast.Expression, struct {
 
 pub const Addative = Rule(*ast.Expression, struct {
     // addative ::= term { ( + | - ) term } *
-    pub const parser = associativeBinOpParser("addative expression", Term.parser, first(ast.BinOp, "addition", &.{
+    pub const parser = associativeBinOpParser("addative expression", Multaplicative.parser, first(ast.BinOp, "addition", &.{
         id(.plus, ast.BinOp.op_plus),
         id(.minus, ast.BinOp.op_minus)
     }));

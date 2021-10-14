@@ -501,6 +501,13 @@ test "scan: simple arithmetic" {
     try expectId(.eof, &scanner);
 }
 
+test "scan: negate" { // TODO: Parse this as the number literal "-3"
+    var allocator = std.testing.allocator;
+    var scanner = try Scanner.initUtf8(allocator, "-3");
+    try expectId(.minus, &scanner);
+    try expectIdRange(.number_literal, "3", &scanner);
+}
+
 test "scan: let kwds" {
     var allocator = std.testing.allocator;
     var scanner = try Scanner.initUtf8(allocator, " let letx let\nlet");

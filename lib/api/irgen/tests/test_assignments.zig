@@ -48,3 +48,17 @@ test "block expression" {
     const result = try utils.evaluateIR(std.testing.allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 4), result);
 }
+
+test "negation" {
+    const source =
+        \\fn main() -> Int {
+        \\  let x: Int = -5;
+        \\  let y: Int = 1 + -x;
+        \\
+        \\  return -y;
+        \\}
+        ;
+
+    const result = try utils.evaluateIR(std.testing.allocator, source);
+    try std.testing.expectEqual(@intCast(@TypeOf(result), -6), result);
+}

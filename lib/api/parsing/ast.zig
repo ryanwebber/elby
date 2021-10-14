@@ -19,6 +19,15 @@ pub const BinOp = enum {
     }
 };
 
+pub const UnaryOp = enum {
+    op_not,
+    op_negate,
+
+    pub fn jsonStringify(self: UnaryOp, _: anytype, out_stream: anytype) !void {
+        try out_stream.writeAll(@tagName(self));
+    }
+};
+
 pub const NumberLiteral = struct {
     value: types.Numeric,
 };
@@ -33,10 +42,16 @@ pub const BinaryExpression = struct {
     rhs: *const Expression
 };
 
+pub const UnaryExpression = struct {
+    op: UnaryOp,
+    rhs: *const Expression,
+};
+
 pub const Expression = union(enum) {
     number_literal: *const NumberLiteral,
     identifier: *const Identifier,
     binary_expression: *const BinaryExpression,
+    unary_expression: *const UnaryExpression,
     function_call: *const FunctionCall,
     block: []const *const Statement,
 };

@@ -16,6 +16,18 @@ pub const BinOp = struct {
     }
 };
 
+pub const UnaryOp = struct {
+    dest: slot.Slot,
+    rhs: slot.Slot,
+
+    pub fn format(self: *const UnaryOp, writer: anytype, operator: []const u8) !void {
+        try self.dest.format(writer);
+        try writer.print(" := ", .{});
+        try writer.print(" {s} ", .{ operator });
+        try self.rhs.format(writer);
+    }
+};
+
 pub const MoveOp = struct {
     src: OffsetAssignment,
     dest: OffsetAssignment,
