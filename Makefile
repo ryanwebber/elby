@@ -1,7 +1,7 @@
 BIN_DIR := $(PWD)/zig-out/bin
 DOCKER := podman
-NPM := npm
 
+NPM := npm
 PARSER_SOURCE := lib/parser
 
 all: build test
@@ -24,6 +24,8 @@ test-compiler-inspect:
 	@PATH=$(BIN_DIR):$(PATH) ; make -C test/c99 test TMPDIR=$(PWD)/.test-out/c
 
 # Parser
+
+parser: generate-parser test-parser
 
 generate-parser:
 	$(NPM) install --prefix $(PARSER_SOURCE)

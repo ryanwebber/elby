@@ -160,7 +160,9 @@ make test
 
 The parser is generated from a tree-sitter grammar. The generated `c` source files
 are checked into the repo and only need to be rebuilt when the grammar changes. To generate
-the parser, you'll need an installation of `npm` and `node`, at which point you can run:
+the parser, you'll need an installation of `npm` and `node`, and you'll also need to clone
+the tree-sitter submodule with `git submodule init && git submodule update`. At this point,
+you can generate the parser source files with:
 
 ```bash
 # Generate the parser
