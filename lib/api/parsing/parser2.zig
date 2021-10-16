@@ -1,7 +1,8 @@
 const std = @import("std");
 const ast = @import("ast.zig");
 const errors = @import("../error.zig");
-const Result = @import("../result.zig").Result;
+
+const SyntaxError = @import("syntax_error.zig").SyntaxError;
 
 const c = @cImport({
     @cInclude("parser.h");
@@ -11,10 +12,12 @@ const c = @cImport({
 extern fn tree_sitter_elby() *const c.TSLanguage;
 
 const ts = struct {
-    pub const Parser = c.TSParser;
+    pub const RawParser = c.TSParser;
     pub const RawParse = c.TSTree;
+    pub const RawNode = c.TSNode;
+    pub const RawCursor = c.TSTreeCursor;
 
-    pub fn new_parser() !*Parser {
+    pub fn new_parser() !*RawParser {
         var parser = c.ts_parser_new() orelse {
             return std.mem.Allocator.Error.OutOfMemory;
         };
@@ -26,11 +29,11 @@ const ts = struct {
         return parser;
     }
 
-    pub fn free_parser(parser: *Parser) void {
+    pub fn free_parser(parser: *RawParser) void {
         c.ts_parser_delete(parser);
     }
 
-    pub fn parse_string(parser: *Parser, source: []const u8) !*RawParse {
+    pub fn parse_string(parser: *RawParser, source: []const u8) !*RawParse {
         return c.ts_parser_parse_string(parser, null, source.ptr, @intCast(u32, source.len)) orelse {
             return std.mem.Allocator.Error.OutOfMemory;
         };
@@ -57,6 +60,22 @@ pub const ConcreteParse = struct {
         _ = arena;
         unreachable;
     }
+
+    pub fn errorIterator() ErrorIterator {
+        return .{};
+    }
+
+    pub const ErrorIterator = struct {
+
+        cursor: ts.RawCursor,
+
+        const Self = @This();
+
+        pub fn next(self: *Self) ?SyntaxError {
+            _ = self;
+            return null;
+        }
+    };
 };
 
 pub const ParseResult = struct {
