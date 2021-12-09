@@ -1,15 +1,13 @@
 # Elby Language
 
-A language and toolchain targeting the Apollo Guidance Computer.
+A language and toolchain targeting odd architectures.
 
-## Features
+## Planned Features
 
  * Static type system
  * Static variable allocation
  * Type-based overflow semantics
- * Multi-bank support
- * Interpreter-supported types (ex. Vectors)
- * Standard library APIs for IO, DSKY, etc
+ * VM support (ex. interpreter mode in AGC)
 
 ```
 @import("something.lb)
@@ -133,6 +131,7 @@ Current language features:
  - [ ] Optionals, math overflows
  - [ ] Match expressions
  - [ ] Inline asm
+ - [ ] VM modes
 
 Targets:
  - `c`: Working as far as language features go
