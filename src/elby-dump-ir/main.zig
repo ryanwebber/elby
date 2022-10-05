@@ -42,12 +42,12 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}) {};
     defer { _ = gpa.deinit(); }
 
-    var allocator = &gpa.allocator;
+    var allocator = gpa.allocator();
 
     const args = try std.process.argsAlloc(allocator);
     defer { std.process.argsFree(allocator, args); }
 
-    const parse = try ArgumentParser.parse(allocator, args[1..]);
+    const parse = try ArgumentParser.parse(&allocator, args[1..]);
     defer { parse.deinit(); }
 
     const errWriter = std.io.getStdErr().writer();
@@ -77,7 +77,7 @@ pub fn main() anyerror!void {
                     std.os.exit(1);
                 },
                 .c => {
-                    const exitStatus = try compileWithTarget(elby.targets.c, allocator, sourceFile);
+                    const exitStatus = try compileWithTarget(elby.targets.c, &allocator, sourceFile);
                     std.os.exit(exitStatus);
                 },
             } else if (conf.arguments.target.len == 0) {
@@ -103,7 +103,7 @@ fn compileWithTarget(comptime TargetType: type, allocator: *std.mem.Allocator, f
     var moduleLoader = elby.ModuleResolver.init(allocator);
     defer { moduleLoader.deinit(); }
 
-    const absModulePath = std.fs.cwd().realpathAlloc(allocator, filename) catch |err| {
+    const absModulePath = std.fs.cwd().realpathAlloc(allocator.*, filename) catch |err| {
         try fatal("Unable to open module: {s} ({any}).", .{ filename, err });
         return 2;
     };

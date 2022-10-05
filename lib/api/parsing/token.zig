@@ -7,7 +7,7 @@ pub const Token = struct {
     line: usize,
     offset: usize,
 
-    pub const Id = std.meta.TagType(Value);
+    pub const Id = std.meta.Tag(Value);
     pub const Value = union(enum) {
         identifier: []const u8,
         number_literal: types.Numeric,

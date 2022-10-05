@@ -5,6 +5,7 @@ const utils = @import("../../testing/utils.zig");
 const Parser = @import("../parser.zig").Parser;
 
 test "parse mixed expression" {
+    var allocator = std.testing.allocator;
     const source =
         \\fn main(a: b) -> c {
         \\  return a;
@@ -12,7 +13,7 @@ test "parse mixed expression" {
         \\
         ;
 
-    try utils.expectAst(std.testing.allocator, source, &.{
+    try utils.expectAst(&allocator, source, &.{
         .functions = &.{
             &.{
                 .identifier = &.{

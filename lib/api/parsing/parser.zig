@@ -32,7 +32,7 @@ pub fn ParseBuilder(comptime Value: type, parser: Parser(Value)) type {
         pub const ValueType = Value;
 
         pub fn parse(arena: *std.heap.ArenaAllocator, iterator: *TokenIterator) !Parse(Value) {
-            const allocator = &arena.allocator;
+            const allocator = &arena.allocator();
 
             var err_accumulator = ErrorAccumulator.init(allocator);
             defer {

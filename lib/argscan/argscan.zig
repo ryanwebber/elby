@@ -88,13 +88,12 @@ pub fn Parser(comptime format: *const Format) type {
         pub const helpText = generateHelpText(format);
 
         pub fn parse(allocator: *std.mem.Allocator, args: [][:0]const u8) !Configuration {
-            var arena = std.heap.ArenaAllocator.init(allocator);
+            var arena = std.heap.ArenaAllocator.init(allocator.*);
             errdefer { arena.deinit(); }
 
             var options: OptionsType = .{};
             var arguments: ArgumentsType = .{};
-
-            var unparsed = std.ArrayList([]const u8).init(&arena.allocator);
+            var unparsed = std.ArrayList([]const u8).init(arena.allocator());
 
             var i: usize = 0;
             nextArg: while (i < args.len) {
@@ -117,7 +116,7 @@ pub fn Parser(comptime format: *const Format) type {
                     inline for (argument.forms) |form| {
                         if (std.mem.eql(u8, form, arg)) {
                             if (i < args.len - 1) {
-                                const valueClone = try arena.allocator.dupe(u8, args[i + 1]);
+                                const valueClone = try arena.allocator().dupe(u8, args[i + 1]);
                                 @field(arguments, argument.name) = valueClone;
                                 foundArg = true;
                             }
@@ -148,7 +147,7 @@ pub fn Parser(comptime format: *const Format) type {
                         }
                     };
                 } else {
-                    const argClone = try arena.allocator.dupe(u8, arg);
+                    const argClone = try arena.allocator().dupe(u8, arg);
                     try unparsed.append(argClone);
                     i += 1;
                 }

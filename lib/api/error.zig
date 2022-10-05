@@ -5,6 +5,6 @@ pub const SystemError = error {
 } || std.mem.Allocator.Error;
 
 pub fn fatal(comptime format: []const u8, args: anytype) SystemError {
-    std.log.crit(format, args);
+    std.log.err(format, args);
     return SystemError.InvalidState;
 }

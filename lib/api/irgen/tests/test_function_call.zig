@@ -3,7 +3,7 @@ const ast = @import("../../parsing/ast.zig");
 const utils = @import("../../testing/utils.zig");
 
 test "function return ir generation" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  return add(a: 1, b: 2);
@@ -14,12 +14,12 @@ test "function return ir generation" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
 
 test "function void return" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn test(a: Int, b: Int) {
         \\}
@@ -30,11 +30,11 @@ test "function void return" {
         \\
         ;
 
-    try utils.expectIR(std.testing.allocator, source, "test(a:b:)", expectedIR);
+    try utils.expectIR(&allocator, source, "test(a:b:)", expectedIR);
 }
 
 test "function param smashing" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  return foo(a: 1, b: foo(a: 2, b: 3));
@@ -45,6 +45,6 @@ test "function param smashing" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 6), result);
 }

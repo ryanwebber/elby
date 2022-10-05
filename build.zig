@@ -41,19 +41,8 @@ pub fn build(b: *std.build.Builder) void {
     inline for (commands) |command| {
         const main = std.fmt.comptimePrint("src/{s}/main.zig", .{ command.name });
         const exe = b.addExecutable(command.name, main);
-        exe.addPackage(.{
-            .name = "elby",
-            .path = .{
-                .path = "lib/api/api.zig"
-            }
-        });
-
-        exe.addPackage(.{
-            .name = "argscan",
-            .path = .{
-                .path = "lib/argscan/argscan.zig"
-            }
-        });
+        exe.addPackagePath("elby", "lib/api/api.zig");
+        exe.addPackagePath("argscan", "lib/argscan/argscan.zig");
 
         const exe_options = b.addOptions();
         exe.addOptions("build-options", exe_options);

@@ -15,7 +15,7 @@ pub const ErrorAccumulator = struct {
 
     pub fn init(allocator: *std.mem.Allocator) Self {
         return .{
-            .errors = std.ArrayList(SyntaxError).init(allocator),
+            .errors = std.ArrayList(SyntaxError).init(allocator.*),
         };
     }
 
@@ -342,7 +342,7 @@ pub fn atLeast(comptime Value: type, comptime n: usize, description: []const u8,
         fn parse(context: *Context) SystemError!AtLeastProduction {
 
             // Content are owned by the caller when this returns
-            var parses = std.ArrayList(Value).init(context.allocator);
+            var parses = std.ArrayList(Value).init(context.allocator.*);
             defer { parses.deinit(); }
 
             var offset = context.iterator.offset;

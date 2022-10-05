@@ -68,7 +68,7 @@ pub const Generator = struct {
     }
 
     pub fn compileSchemeWithWriter(self: *Self, scheme: *const Scheme, writer: anytype) !void {
-        var buffer = std.ArrayList(u8).init(self.context.allocator);
+        var buffer = std.ArrayList(u8).init(self.context.allocator.*);
         defer { buffer.deinit(); }
 
         try writeScheme(buffer.writer(), scheme);

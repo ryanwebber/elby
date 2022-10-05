@@ -8,7 +8,7 @@ pub const Numeric = union(enum) {
     float: FloatType,
     int: IntType,
 
-    pub const Type = std.meta.TagType(Numeric);
+    pub const Type = std.meta.Tag(Numeric);
 
     pub const NumberFormatError = error {
         MalformedString,

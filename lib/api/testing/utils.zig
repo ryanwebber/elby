@@ -31,7 +31,8 @@ pub fn reportSyntaxErrors(errors: []const SyntaxError) anyerror {
 }
 
 pub fn toOwnedAst(comptime Value: type, comptime parser: Parser(Value), arena: *std.heap.ArenaAllocator, source: []const u8) !Value {
-    var tokenizer = try Tokenizer.tokenize(&arena.allocator, source);
+    var allocator = arena.allocator();
+    var tokenizer = try Tokenizer.tokenize(&allocator, source);
 
     if (tokenizer.err) |err| {
         return reportSyntaxErrors(&.{ err });
@@ -50,15 +51,15 @@ pub fn toOwnedAst(comptime Value: type, comptime parser: Parser(Value), arena: *
 }
 
 pub fn expectAst(allocator: *std.mem.Allocator, source: []const u8, expected: *const ast.Program) !void {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator.*);
     defer { arena.deinit(); }
 
     const actual = try toOwnedAst(*ast.Program, grammar.parser, &arena, source);
 
-    var expected_json_container = std.ArrayList(u8).init(allocator);
+    var expected_json_container = std.ArrayList(u8).init(allocator.*);
     defer { expected_json_container.deinit(); }
 
-    var actual_json_container = std.ArrayList(u8).init(allocator);
+    var actual_json_container = std.ArrayList(u8).init(allocator.*);
     defer { actual_json_container.deinit(); }
 
     const jsonOptions: std.json.StringifyOptions = .{
@@ -89,7 +90,7 @@ pub fn expectAst(allocator: *std.mem.Allocator, source: []const u8, expected: *c
 /// }
 /// ```
 pub fn evaluateIR(allocator: *std.mem.Allocator, source: []const u8) !interpreter.IntType {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator.*);
     defer { arena.deinit(); }
 
     const program = try toProgramAst(&arena, source);
@@ -130,7 +131,7 @@ pub fn dumpIR(allocator: *std.mem.Allocator, source: []const u8, writer: anytype
 
 pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: []const u8, expectedIR: []const u8) !void {
 
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator.*);
     defer { arena.deinit(); }
 
     const program = try toProgramAst(&arena, source);
@@ -146,7 +147,7 @@ pub fn expectIR(allocator: *std.mem.Allocator, source: []const u8, functionID: [
         return Error.FunctionNotFound;
     };
 
-    var actualIR = std.ArrayList(u8).init(std.testing.allocator);
+    var actualIR = std.ArrayList(u8).init(allocator.*);
     var stream = actualIR.writer();
     defer { actualIR.deinit(); }
 

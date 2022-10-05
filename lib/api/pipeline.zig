@@ -44,7 +44,7 @@ pub fn Pipeline(comptime TargetType: type) type {
 
         pub fn init(allocator: *std.mem.Allocator, context: *Context) Self {
             return .{
-                .arena = std.heap.ArenaAllocator.init(allocator),
+                .arena = std.heap.ArenaAllocator.init(allocator.*),
                 .context = context,
             };
         }
@@ -54,8 +54,8 @@ pub fn Pipeline(comptime TargetType: type) type {
         }
 
         pub fn compile(self: *Self, module: *const Module) !StageResult(Scheme) {
-            var allocator = &self.arena.allocator;
-            var tokenizer = try Tokenizer.tokenize(allocator, module.source);
+            var allocator = self.arena.allocator();
+            var tokenizer = try Tokenizer.tokenize(&allocator, module.source);
             const parser = parsing.ProgramParser;
             const parse = try parser.parse(&self.arena, &tokenizer.iterator());
             const program = switch (parse.result) {
@@ -68,7 +68,7 @@ pub fn Pipeline(comptime TargetType: type) type {
             };
 
             const typeRegistry = types.TypeRegistry.init(TargetType.config.types);
-            const scheme = try ir.compileScheme(allocator, program, &typeRegistry, TargetType.config.externs);
+            const scheme = try ir.compileScheme(&allocator, program, &typeRegistry, TargetType.config.externs);
             return StageResult(Scheme) {
                 .ok = scheme,
             };
@@ -86,7 +86,7 @@ pub fn Pipeline(comptime TargetType: type) type {
             var compilationResult = try self.compile(module);
             switch (compilationResult) {
                 .ok => |*scheme| {
-                    defer { scheme.deinit(); }
+                    errdefer { scheme.deinit(); }
                     return try self.generate(scheme, options);
                 },
                 else => {}
@@ -162,10 +162,10 @@ test {
         .externs = &.{},
     });
 
-    var context = Context.init(allocator);
+    var context = Context.init(&allocator);
     defer { context.deinit(); }
 
-    var pipeline = Pipeline(TestTarget).init(allocator, &context);
+    var pipeline = Pipeline(TestTarget).init(&allocator, &context);
     defer { pipeline.deinit(); }
 
     var options: TestTarget.OptionsType = .{};

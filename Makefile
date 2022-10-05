@@ -17,7 +17,7 @@ test-inspect: build
 	zig build test
 	@PATH=$(BIN_DIR):$(PATH) ; make -C test/c99 test TMPDIR=$(PWD)/.test-out/c
 
-test-docker: build
+test-docker:
 	$(DOCKER) build -t elby/base -f Dockerfile
 	$(DOCKER) build -t elby/tests/c -f test/c99/Dockerfile
 	$(DOCKER) run -it --network none elby/tests/c

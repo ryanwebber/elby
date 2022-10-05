@@ -66,7 +66,7 @@ pub const FunctionPrototype = struct {
         const returnType = Utils.getReturnType(node, typeRegistry);
 
         // Parameters
-        var params = std.ArrayList(Parameter).init(allocator);
+        var params = std.ArrayList(Parameter).init(allocator.*);
         errdefer {
             for (params.items) |p| {
                 allocator.free(p.name);
@@ -94,7 +94,7 @@ pub const FunctionPrototype = struct {
         errdefer { allocator.free(signature); }
 
         const name = try allocator.dupe(u8, node.identifier.name);
-        errdefer { allocator.free(signanameture); }
+        errdefer { allocator.free(signature); }
 
         return Self {
             .allocator = allocator,
@@ -134,7 +134,7 @@ pub const FunctionLayout = struct {
                 locals: []const NamedSlot,
                 temps: []const *const types.Type) !Self {
 
-        var tempMapping = try std.ArrayList(TempSlot).initCapacity(allocator, temps.len);
+        var tempMapping = try std.ArrayList(TempSlot).initCapacity(allocator.*, temps.len);
         defer { tempMapping.deinit(); }
 
         for (temps) |tempType, i| {
@@ -224,8 +224,8 @@ pub const FunctionBody = struct {
         pub fn init(allocator: *std.mem.Allocator) Builder {
             return .{
                 .allocator = allocator,
-                .instructions = std.ArrayList(Instruction).init(allocator),
-                .labels = std.StringHashMap(usize).init(allocator),
+                .instructions = std.ArrayList(Instruction).init(allocator.*),
+                .labels = std.StringHashMap(usize).init(allocator.*),
             };
         }
 
@@ -235,7 +235,7 @@ pub const FunctionBody = struct {
 
         pub fn addLabel(self: *Builder, offset: usize) ![]const u8 {
             const pc = offset + self.instructions.items.len;
-            var buffer = std.ArrayList(u8).init(self.allocator);
+            var buffer = std.ArrayList(u8).init(self.allocator.*);
             try buffer.writer().print("label_{d}", .{ self.labels.count() });
             const label = buffer.toOwnedSlice();
             errdefer { self.allocator.free(label); }
@@ -264,7 +264,7 @@ pub const FunctionBody = struct {
         pub fn buildAndDispose(self: *Builder) !FunctionBody {
             defer { self.instructions.deinit(); }
 
-            var labelLookup = LabelLookup.init(self.allocator);
+            var labelLookup = LabelLookup.init(self.allocator.*);
             errdefer {
                 var iterator = labelLookup.valueIterator();
                 while (iterator.next()) |list| {
@@ -278,7 +278,7 @@ pub const FunctionBody = struct {
             while (iterator.next()) |entry| {
                 var current = try labelLookup.getOrPut(entry.value_ptr.*);
                 if (!current.found_existing) {
-                    current.value_ptr.* = std.ArrayList([]const u8).init(self.allocator);
+                    current.value_ptr.* = std.ArrayList([]const u8).init(self.allocator.*);
                 }
 
                 try current.value_ptr.append(entry.key_ptr.*);
@@ -299,8 +299,8 @@ pub const PrototypeRegistry = struct {
     pub fn init(allocator: *std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
-            .lookupTable = std.StringHashMap(FunctionPrototype).init(allocator),
-            .externals = std.StringHashMap(FunctionPrototype).init(allocator),
+            .lookupTable = std.StringHashMap(FunctionPrototype).init(allocator.*),
+            .externals = std.StringHashMap(FunctionPrototype).init(allocator.*),
         };
     }
 
@@ -350,8 +350,8 @@ pub const PrototypeRegistry = struct {
 pub const Utils = struct {
 
     pub fn partsToOwnedIdentifier(allocator: *std.mem.Allocator, name: []const u8, parameters: []const Parameter) ![]const u8 {
-        var buffer = try std.ArrayList(u8).initCapacity(allocator, name.len + 2);
-        defer { buffer.deinit(); }
+        var buffer = try std.ArrayList(u8).initCapacity(allocator.*, name.len + 2);
+        errdefer { buffer.deinit(); }
 
         try buffer.writer().print("{s}(", .{ name });
         for (parameters) |param| {
@@ -363,33 +363,35 @@ pub const Utils = struct {
     }
 
     pub fn partsToOwnedSignature(allocator: *std.mem.Allocator, name: []const u8, parameters: []const Parameter, returnType: *const types.Type) ![]const u8 {
-        var buffer = try std.ArrayList(u8).initCapacity(allocator, name.len + 6);
-        defer { buffer.deinit(); }
+        var buffer = try std.ArrayList(u8).initCapacity(allocator.*, name.len + 6);
+        errdefer { buffer.deinit(); }
+
         try buffer.writer().print("{s}(", .{ name });
         for (parameters) |param| {
             try buffer.writer().print("{s}:{s},", .{ param.name, param.type.name });
         }
-        try buffer.writer().print(") -> {s}", .{ returnType.name });
+        try buffer.writer().print("){s}", .{ returnType.name });
 
         return buffer.toOwnedSlice();
     }
 
     pub fn functionToOwnedSignature(allocator: *std.mem.Allocator, function: *const ast.Function) ![]const u8 {
         const returnType = if (function.returnType) |t| t.name else types.Types.void.name;
-        var buffer = try std.ArrayList(u8).initCapacity(allocator, function.identifier.name.len + 6);
-        defer { buffer.deinit(); }
+        var buffer = try std.ArrayList(u8).initCapacity(allocator.*, function.identifier.name.len + 6);
+        errdefer { buffer.deinit(); }
+
         try buffer.writer().print("{s}(", .{ function.identifier.name });
         for (function.paramlist.parameters) |param| {
             try buffer.writer().print("{s}:{s},", .{ param.identifier.name, param.type.name });
         }
-        try buffer.writer().print(") -> {s}", .{ returnType });
+        try buffer.writer().print("){s}", .{ returnType });
 
         return buffer.toOwnedSlice();
     }
 
     pub fn functionToOwnedIdentifier(allocator: *std.mem.Allocator, function: *const ast.Function) ![]const u8 {
-        var buffer = try std.ArrayList(u8).initCapacity(allocator, function.identifier.name.len + 2);
-        defer { buffer.deinit(); }
+        var buffer = try std.ArrayList(u8).initCapacity(allocator.*, function.identifier.name.len + 2);
+        errdefer { buffer.deinit(); }
 
         try buffer.writer().print("{s}(", .{ function.identifier.name });
         for (function.paramlist.parameters) |param| {
@@ -401,12 +403,10 @@ pub const Utils = struct {
     }
 
     pub fn callToOwnedIdentifier(allocator: *std.mem.Allocator, call: *const ast.FunctionCall) ![]const u8 {
-        var buffer = std.ArrayList(u8).init(allocator);
-        defer { buffer.deinit(); }
+        var buffer = std.ArrayList(u8).init(allocator.*);
+        errdefer { buffer.deinit(); }
 
         var writer = buffer.writer();
-        defer { buffer.deinit(); }
-
         try writer.print("{s}(", .{ call.identifier.name });
         for (call.arglist.arguments) |arg| {
             try writer.print("{s}:", .{ arg.identifier.name });
@@ -473,4 +473,34 @@ pub const ExternFunction = struct {
 
 test {
     _ = NamedSlot;
+}
+
+test "function signature" {
+    const functionAst = &.{
+        .identifier = &.{
+            .name = "foo",
+        },
+        .paramlist = &.{
+            .parameters = &.{
+                &.{
+                    .identifier = &.{
+                        .name = "bar",
+                    },
+                    .type = &.{
+                        .name = "baz"
+                    }
+                },
+            }
+        },
+        .returnType = &.{
+            .name = "qux",
+        },
+        .body = &.{}
+    };
+
+    var allocator = std.testing.allocator;
+    var identifier = try Utils.functionToOwnedSignature(&allocator, functionAst);
+    defer { allocator.free(identifier); }
+
+    try std.testing.expectEqualStrings(identifier, "foo(bar:baz,)qux");
 }

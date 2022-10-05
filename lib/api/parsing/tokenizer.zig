@@ -17,9 +17,9 @@ pub const Tokenizer = struct {
 
     const Self = @This();
 
-    pub fn tokenize(allocator: * std.mem.Allocator, source: []const u8) !Self {
+    pub fn tokenize(allocator: *std.mem.Allocator, source: []const u8) !Self {
         var scanner = try Scanner.initUtf8(allocator, source);
-        var list = std.ArrayList(*Token).init(allocator);
+        var list = std.ArrayList(*Token).init(allocator.*);
         var err: ?SyntaxError = null;
 
         while (true) {
@@ -111,7 +111,7 @@ pub const TokenIterator = struct {
 
 test "tokenize: parse tokens success" {
     var allocator = std.testing.allocator;
-    var tokenizer = try Tokenizer.tokenize(allocator, "let i = 0o2 + 6512.3");
+    var tokenizer = try Tokenizer.tokenize(&allocator, "let i = 0o2 + 6512.3");
     defer { tokenizer.deinit(); }
 
     try std.testing.expectEqual(Token.Value { .number_literal = .{ .int = 2, } }, tokenizer.tokens.items[3].type);

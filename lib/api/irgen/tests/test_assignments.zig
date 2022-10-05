@@ -3,7 +3,7 @@ const ast = @import("../../parsing/ast.zig");
 const utils = @import("../../testing/utils.zig");
 
 test "definition ir generation" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = 5 - 3 * 8 / (0x1 + 0b01);
@@ -12,12 +12,12 @@ test "definition ir generation" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 98), result);
 }
 
 test "mutable var ir generation" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  mut x: Int = 1;
@@ -27,12 +27,12 @@ test "mutable var ir generation" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
 
 test "block expression" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = {
@@ -45,11 +45,12 @@ test "block expression" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 4), result);
 }
 
 test "negation" {
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = -5;
@@ -59,6 +60,6 @@ test "negation" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), -6), result);
 }

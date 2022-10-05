@@ -31,7 +31,7 @@ pub const Slot = union(enum) {
     call: CallSlot,
     retval,
 
-    pub const Type = std.meta.TagType(Slot);
+    pub const Type = std.meta.Tag(Slot);
 
     pub fn format(self: *const Slot, writer: anytype) !void {
         switch (self.*) {

@@ -36,7 +36,7 @@ pub const SimpleInterpreter = struct {
 
     pub fn init(allocator: *std.mem.Allocator, scheme: *const Scheme,) !Self {
         var data = try allocator.create(std.StringHashMap(FunctionData));
-        data.* = std.StringHashMap(FunctionData).init(allocator);
+        data.* = std.StringHashMap(FunctionData).init(allocator.*);
 
         errdefer {
             var itr = data.valueIterator();

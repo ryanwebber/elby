@@ -3,7 +3,7 @@ const ast = @import("../../parsing/ast.zig");
 const utils = @import("../../testing/utils.zig");
 
 test "bool ir generation" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = 5;
@@ -18,12 +18,12 @@ test "bool ir generation" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 1), result);
 }
 
 test "bool ir generation else if" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = 2;
@@ -38,12 +38,12 @@ test "bool ir generation else if" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 2), result);
 }
 
 test "bool ir generation else" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = 20;
@@ -59,13 +59,13 @@ test "bool ir generation else" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
 
 
 test "bool inequality" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = 1;
@@ -77,12 +77,12 @@ test "bool inequality" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
 
 test "bool types" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Bool = true;
@@ -94,12 +94,12 @@ test "bool types" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 3), result);
 }
 
 test "relation expression" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let x: Int = 8;
@@ -114,6 +114,6 @@ test "relation expression" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 2), result);
 }

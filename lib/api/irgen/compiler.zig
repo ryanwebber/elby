@@ -63,7 +63,7 @@ pub const SlotAllocator = struct {
 
     pub fn init(allocator: *std.mem.Allocator, prototype: *const FunctionPrototype) !Self {
 
-        var paramSlots = std.StringArrayHashMap(NamedSlot).init(allocator);
+        var paramSlots = std.StringArrayHashMap(NamedSlot).init(allocator.*);
         errdefer { paramSlots.deinit(); }
 
         for (prototype.parameters) |parameter| {
@@ -73,9 +73,9 @@ pub const SlotAllocator = struct {
             });
         }
 
-        var localSlots = std.StringArrayHashMap(NamedSlot).init(allocator);
-        var tempSlots = std.ArrayList(*const types.Type).init(allocator);
-        var yieldSlots = std.ArrayList(SlotIndex).init(allocator);
+        var localSlots = std.StringArrayHashMap(NamedSlot).init(allocator.*);
+        var tempSlots = std.ArrayList(*const types.Type).init(allocator.*);
+        var yieldSlots = std.ArrayList(SlotIndex).init(allocator.*);
 
         return Self {
             .allocator = allocator,
@@ -193,7 +193,7 @@ pub fn compileScheme(allocator: *std.mem.Allocator,
         prototypeRegistry.deinit();
     }
 
-    var functions = std.ArrayList(*FunctionDefinition).init(allocator);
+    var functions = std.ArrayList(*FunctionDefinition).init(allocator.*);
     errdefer {
         for (functions.items) |f| {
             f.deinit();
@@ -743,10 +743,10 @@ test {
     });
 
     var allocator = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer { arena.deinit(); }
     const program = try utils.toProgramAst(&arena, source);
 
-    var scheme = try compileScheme(allocator, program, &typeRegistry, &.{});
+    var scheme = try compileScheme(&allocator, program, &typeRegistry, &.{});
     defer { scheme.deinit(); }
 }

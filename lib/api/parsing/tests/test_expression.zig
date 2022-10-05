@@ -5,8 +5,9 @@ const utils = @import("../../testing/utils.zig");
 const Parser = @import("../parser.zig").Parser;
 
 test "parse mixed expression" {
+    var allocator = std.testing.allocator;
     const source = "fn main() { let x: i = 5 - 3 * 2.15 / (0x1 + 0); }";
-    try utils.expectAst(std.testing.allocator, source, &.{
+    try utils.expectAst(&allocator, source, &.{
         .functions = &.{
             &.{
                 .identifier = &.{
@@ -91,8 +92,9 @@ test "parse mixed expression" {
 }
 
 test "parse unary expression" {
+    var allocator = std.testing.allocator;
     const source = "fn main() { let x: i = -a; }";
-    try utils.expectAst(std.testing.allocator, source, &.{
+    try utils.expectAst(&allocator, source, &.{
         .functions = &.{
             &.{
                 .identifier = &.{

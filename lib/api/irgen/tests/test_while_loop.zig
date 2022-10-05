@@ -3,7 +3,7 @@ const ast = @import("../../parsing/ast.zig");
 const utils = @import("../../testing/utils.zig");
 
 test "false while loop" {
-
+    var allocator = std.testing.allocator;
     const source =
         \\fn main() -> Int {
         \\  let i: Int = 0;
@@ -13,6 +13,6 @@ test "false while loop" {
         \\}
         ;
 
-    const result = try utils.evaluateIR(std.testing.allocator, source);
+    const result = try utils.evaluateIR(&allocator, source);
     try std.testing.expectEqual(@intCast(@TypeOf(result), 6), result);
 }

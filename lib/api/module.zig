@@ -34,8 +34,8 @@ pub const ModuleResolver = struct {
     pub fn init(allocator: *std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
-            .modules = std.StringHashMap(Module).init(allocator),
-            .dirs = std.StringHashMap([]const u8).init(allocator),
+            .modules = std.StringHashMap(Module).init(allocator.*),
+            .dirs = std.StringHashMap([]const u8).init(allocator.*),
         };
     }
 
@@ -90,14 +90,14 @@ pub const ModuleResolver = struct {
             return moduleEntry.value_ptr;
         }
 
-        const modulePath = try std.fs.path.join(self.allocator, &.{ dir, name });
+        const modulePath = try std.fs.path.join(self.allocator.*, &.{ dir, name });
         defer { self.allocator.free(modulePath); }
 
         const flags = std.fs.File.OpenFlags {};
         const file = try std.fs.openFileAbsolute(modulePath, flags);
         defer { file.close(); }
 
-        var contents = std.ArrayList(u8).init(self.allocator);
+        var contents = std.ArrayList(u8).init(self.allocator.*);
         defer { contents.deinit(); }
 
         try file.reader().readAllArrayList(&contents, maxModuleSize);
@@ -113,7 +113,7 @@ pub const ModuleResolver = struct {
     }
 
     fn toOwnedModuleName(self: *Self, name: []const u8, dir: []const u8) ![]const u8 {
-        var buffer = std.ArrayList(u8).init(self.allocator);
+        var buffer = std.ArrayList(u8).init(self.allocator.*);
         defer { buffer.deinit(); }
 
         try buffer.writer().print("{s}_{s}", .{ dir, name });

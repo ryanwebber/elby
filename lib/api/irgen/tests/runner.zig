@@ -11,7 +11,7 @@ pub fn expectIR(allocator: *std.mem.Allocator, expectedIR: []const u8, function:
 
     try compiler.compileFunction(function, &slotAllocator, &destList);
 
-    var actualIR = std.ArrayList(u8).init(std.testing.allocator);
+    var actualIR = std.ArrayList(u8).init(&std.testing.allocator);
     var stream = actualIR.writer();
     defer { actualIR.deinit(); }
 

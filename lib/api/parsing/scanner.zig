@@ -460,20 +460,20 @@ fn expectIdentifier(str: []const u8, scanner: *Scanner) !void {
 
 test "scan: empty string" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "");
+    var scanner = try Scanner.initUtf8(&allocator, "");
     try expectId(.eof, &scanner);
 }
 
 test "scan: identifier" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "hello_world");
+    var scanner = try Scanner.initUtf8(&allocator, "hello_world");
     try expectIdentifier("hello_world", &scanner);
     try expectId(.eof, &scanner);
 }
 
 test "scan: skip whitespace and new lines" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "\t\n\nabc\r\n def \t\n");
+    var scanner = try Scanner.initUtf8(&allocator, "\t\n\nabc\r\n def \t\n");
     try expectIdentifier("abc", &scanner);
     try expectIdentifier("def", &scanner);
     try expectId(.eof, &scanner);
@@ -483,13 +483,13 @@ test "scan: skip whitespace and new lines" {
 
 test "scan: whitespace only" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "\t\n ");
+    var scanner = try Scanner.initUtf8(&allocator, "\t\n ");
     try expectId(.eof, &scanner);
 }
 
 test "scan: simple assignment" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "x= y z =w");
+    var scanner = try Scanner.initUtf8(&allocator, "x= y z =w");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdentifier("y", &scanner);
@@ -501,7 +501,7 @@ test "scan: simple assignment" {
 
 test "scan: simple number" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, " x=35 z = 0");
+    var scanner = try Scanner.initUtf8(&allocator, " x=35 z = 0");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdRange(.number_literal, "35", &scanner);
@@ -513,7 +513,7 @@ test "scan: simple number" {
 
 test "scan: simple addition" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "x=35 z = x + 0x1");
+    var scanner = try Scanner.initUtf8(&allocator, "x=35 z = x + 0x1");
     try expectIdentifier("x", &scanner);
     try expectId(.assignment, &scanner);
     try expectIdRange(.number_literal, "35", &scanner);
@@ -527,7 +527,7 @@ test "scan: simple addition" {
 
 test "scan: simple arithmetic" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "3*-z+2--0b1");
+    var scanner = try Scanner.initUtf8(&allocator, "3*-z+2--0b1");
     try expectIdRange(.number_literal, "3", &scanner);
     try expectId(.star, &scanner);
     try expectId(.minus, &scanner);
@@ -542,14 +542,14 @@ test "scan: simple arithmetic" {
 
 test "scan: negate" { // TODO: Parse this as the number literal "-3"
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, "-3");
+    var scanner = try Scanner.initUtf8(&allocator, "-3");
     try expectId(.minus, &scanner);
     try expectIdRange(.number_literal, "3", &scanner);
 }
 
 test "scan: let kwds" {
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, " let letx let\nlet");
+    var scanner = try Scanner.initUtf8(&allocator, " let letx let\nlet");
     try expectId(.kwd_let, &scanner);
     try expectIdentifier("letx", &scanner);
     try expectId(.kwd_let, &scanner);
@@ -567,8 +567,9 @@ test "scan: comments" {
         ;
 
     var allocator = std.testing.allocator;
-    var scanner = try Scanner.initUtf8(allocator, source);
+    var scanner = try Scanner.initUtf8(&allocator, source);
     try expectId(.kwd_let, &scanner);
     try expectId(.kwd_let, &scanner);
     try expectId(.kwd_let, &scanner);
 }
+    

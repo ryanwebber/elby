@@ -29,7 +29,7 @@ pub const FunctionRegistry = struct {
     const Self = @This();
 
     pub fn initManaged(allocator: *std.mem.Allocator, definitions: []const *FunctionDefinition, prototypes: PrototypeRegistry) !Self {
-        var mapping = std.StringHashMap(*FunctionDefinition).init(allocator);
+        var mapping = std.StringHashMap(*FunctionDefinition).init(allocator.*);
         errdefer { mapping.deinit(); }
 
         for (definitions) |def| {
